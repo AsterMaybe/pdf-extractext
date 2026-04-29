@@ -205,3 +205,19 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+## Visual Studio ##
+.vs/
+[Dd]ebug/
+[Rr]elease/
+bin/
+obj/
+*.user
+*.suo
+
+## PyCharm (JetBrains) ###
+.idea/
+cmake-build-*/
+*.py[cod]
+.venv/
+.agents
