@@ -187,17 +187,6 @@ pdf-extractext/
 └── .gitignore              # Archivo para ignorar en Git
 ```
 
-
-## Contribución
-
-Las contribuciones siguen el flujo de trabajo estándar:
-
-1. Crear una rama para tu feature: `git checkout -b feature/mi-feature`
-2. Commit tus cambios: `git commit -m "Agregar mi feature"`
-3. Push a la rama: `git push origin feature/mi-feature`
-4. Abrir un Pull Request
-
-
 ## Recursos Útiles
 
 - [Documentación de FastAPI](https://fastapi.tiangolo.com/)
