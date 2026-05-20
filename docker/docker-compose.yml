@@ -1,5 +1,6 @@
 services:
   myapp:
+    images: myapp:v1.0.0
     build:
       context: ..
       dockerfile: docker/Dockerfile
