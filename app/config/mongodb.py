@@ -1,9 +1,8 @@
 """
 Gestión de la conexión a MongoDB.
-
-Centraliza la conexión en un único lugar (DRY).
 La conexión se abre al arrancar la app y se cierra al apagarse,
 aprovechando los eventos de ciclo de vida de FastAPI (lifespan).
+
 """
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
