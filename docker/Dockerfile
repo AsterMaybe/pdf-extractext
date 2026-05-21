@@ -22,4 +22,4 @@ RUN uv sync --locked
 
 EXPOSE 8000
 
-CMD ["uvicorn","--port", "8000", "--host", "0.0.0.0", "--http", "auto", "--workers", "4", "--blocking-threads", "4", "--backlog", "2048", "--interface", "wsgi", "app/main.py"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
