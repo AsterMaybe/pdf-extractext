@@ -1,25 +1,21 @@
 FROM python:3.14-slim
 
-ENV PATH=$PATH:/home/app/.venv/bin
-
 RUN useradd --create-home --home-dir /home/app app
-RUN apt-get update
-RUN apt-get install -y build-essential
-RUN apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
-RUN rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home/app
 
-USER app
+RUN pip install --no-cache-dir uv
 
-ADD https://astral.sh/uv/install.sh ./uv-installer.sh
-RUN sh ./uv-installer.sh && rm ./uv-installer.sh
+COPY ./pyproject.toml ./uv.lock ./
+
+RUN uv sync --locked
 
 COPY ./app ./app
 
-COPY ./pyproject.toml ./uv.lock ./
-RUN uv sync --locked
+RUN chown -R app:app /home/app
+
+USER app
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0"]

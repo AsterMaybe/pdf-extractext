@@ -48,3 +48,5 @@ async def health_check():
         "status": "ok",
         "message": "API operativa y ciclo de vida de la base de datos configurado."
     }
+
+print("API inicializada con éxito. Listo para recibir peticiones.")
