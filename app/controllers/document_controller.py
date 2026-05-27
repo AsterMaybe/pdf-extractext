@@ -31,13 +31,13 @@ async def upload_document(
     """
     Sube un PDF, lo valida, extrae el texto y lo persiste.
     """
-    # 1. Leer en memoria (cumple regla de no persistir temporalmente)
+    # Leer en memoria
     file_bytes = await read_upload_bytes(file)
 
-    # 2. Validar formato y tamaño
+    # Validar formato y tamaño
     validate_pdf(file_bytes, file.filename)
 
-    # 3. Generar Checksum y evitar duplicados
+    # Generar Checksum y evitar duplicados
     checksum = compute_checksum(file_bytes)
     if await repo.exists_by_checksum(checksum):
         raise HTTPException(
@@ -45,10 +45,10 @@ async def upload_document(
             detail="El documento ya fue cargado previamente (Checksum duplicado)."
         )
 
-    # 4. Extraer texto usando el servicio especializado
+    # Extraer texto usando el servicio especializado
     extracted_text = extract_text(file_bytes)
 
-    # 5. Armar modelo y persistir
+    # Armar modelo y persistir
     doc_create = DocumentCreate(
         filename=file.filename,
         text_content=extracted_text,

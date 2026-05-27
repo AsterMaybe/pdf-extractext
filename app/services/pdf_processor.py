@@ -7,7 +7,6 @@ from app.config.config import settings
 # ── Constantes ──────────────────────────────────────────────────────────────
 
 PDF_MAGIC_BYTES = b"%PDF"
-# Asumimos que settings.PDF_MAX_SIZE_MB está definido en tu configuración
 MAX_SIZE_BYTES = settings.PDF_MAX_SIZE_MB * 1024 * 1024
 
 
