@@ -1,0 +1,21 @@
+services:
+  mongo:
+    image: mongo:8.0
+    container_name: mongo
+    ports:
+      - '27017:27017'
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - shared-network
+
+volumes:
+  mongo_data:
+
+networks:
+  shared-network:
+    name: ${SHARED_NETWORK_NAME:-default-shared-network}
+    external: true
