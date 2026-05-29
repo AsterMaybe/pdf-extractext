@@ -1,3 +1,5 @@
+import logging
+from app.config.logging_config import setup_logging
 from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -11,6 +13,10 @@ from app.services.pdf_to_text import extract_text
 
 router = APIRouter()
 
+#─── Iniciar logger ────────────────────
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 # ── Dependencias ─────────────────────────────────────────────────────────────
 
@@ -28,27 +34,25 @@ async def upload_document(
         file: UploadFile = File(...),
         repo: DocumentRepository = Depends(get_document_repo)
 ):
-    """
-    Sube un PDF, lo valida, extrae el texto y lo persiste.
-    """
-    # Leer en memoria
+    logger.info(f"Starting upload process for file: {file.filename}")
+
     file_bytes = await read_upload_bytes(file)
 
-    # Validar formato y tamaño
+    logger.debug(f"Read {len(file_bytes)} bytes from {file.filename}")
+
     validate_pdf(file_bytes, file.filename)
 
-    # Generar Checksum y evitar duplicados
     checksum = compute_checksum(file_bytes)
     if await repo.exists_by_checksum(checksum):
+        logger.warning(f"Upload rejected: Duplicate checksum {checksum} for file {file.filename}")
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="El documento ya fue cargado previamente (Checksum duplicado)."
         )
 
-    # Extraer texto usando el servicio especializado
+    logger.debug(f"Extracting text from {file.filename}")
     extracted_text = extract_text(file_bytes)
 
-    # Armar modelo y persistir
     doc_create = DocumentCreate(
         filename=file.filename,
         text_content=extracted_text,
@@ -56,18 +60,24 @@ async def upload_document(
         file_size_bytes=len(file_bytes)
     )
 
-    return await repo.create(doc_create)
+    created_doc = await repo.create(doc_create)
+    logger.info(
+        f"Successfully processed and stored document: {file.filename} (ID: {getattr(created_doc, 'id', 'unknown')})")
+
+    return created_doc
 
 
 @router.get("/", response_model=List[DocumentResponse])
 async def list_documents(repo: DocumentRepository = Depends(get_document_repo)):
     """Obtiene todos los documentos persistidos."""
+    logger.debug(f"Fetching document ID: {doc_id}")
     return await repo.get_all()
 
 
 @router.get("/{doc_id}", response_model=DocumentResponse)
 async def get_document(doc_id: str, repo: DocumentRepository = Depends(get_document_repo)):
-    """Obtiene un documento específico por su ID."""
+    """Obtiene un documento especifico por id"""
+    logger.debug(f"Fetching documents")
     return await repo.get_by_id(doc_id)
 
 
@@ -77,11 +87,16 @@ async def update_document(
         update_data: DocumentUpdate,
         repo: DocumentRepository = Depends(get_document_repo)
 ):
-    """Actualiza parcialmente un documento (ej. corregir el filename)."""
-    return await repo.update(doc_id, update_data)
+    logger.info(f"Updating document ID {doc_id} with data: {update_data.dict(exclude_unset=True)}")
+    updated_doc = await repo.update(doc_id, update_data)
+
+    if not updated_doc:
+        logger.warning(f"Update failed: Document ID {doc_id} not found")
+
+    return updated_doc
 
 
 @router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(doc_id: str, repo: DocumentRepository = Depends(get_document_repo)):
-    """Elimina un documento de la base de datos."""
+    logger.info(f"Deleting document ID: {doc_id}")
     await repo.delete(doc_id)

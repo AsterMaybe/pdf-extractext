@@ -1,3 +1,8 @@
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import logging
+import os
+from app.config.logging_config import setup_logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +12,8 @@ from app.config.config import settings
 from app.config.mongodb import mongodb
 from app.controllers.document_controller import router as document_router
 
+setup_logging()
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -14,11 +21,15 @@ async def lifespan(app: FastAPI):
     Maneja el ciclo de vida de la aplicación.
     Garantiza que la base de datos esté lista antes de recibir peticiones.
     """
-    # 1. Startup: Inicializar el pool de conexiones de Motor
+    logger.info("Starting up: connecting to MongoDB...")
     mongodb.connect()
+    logger.info("MongoDB connected.")
+
     yield
-    # 2. Shutdown: Liberar los recursos del cliente
+
+    logger.info("Shutting down: disconnecting MongoDB...")
     mongodb.disconnect()
+    logger.info("MongoDB disconnected.")
 
 
 app = FastAPI(
@@ -49,4 +60,19 @@ async def health_check():
         "message": "API operativa y ciclo de vida de la base de datos configurado."
     }
 
-print("API inicializada con éxito. Listo para recibir peticiones.")
+logger.info("API inicializada con éxito. Listo para recibir peticiones.")
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Captura todas las excepciones no controladas globalmente.
+    Registra el rastreo completo del error y devuelve un error genérico 500 al cliente.
+    """
+    # logger.exception automatically attaches the full stack trace to the log!
+    logger.exception(f"Unhandled server error occurred while processing {request.method} {request.url.path}")
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error. Please try again later."},
+    )
