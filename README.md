@@ -1,8 +1,3 @@
-Aquí tienes tu `README.md` completo y actualizado. He integrado todas las mejoras de configuración, los comandos de red, y la nueva sección de gestión de versiones con Docker.
-
-Puedes copiar y pegar todo este bloque directamente en tu archivo:
-
-```markdown
 # PDF-ExtracText
 
 Extraer texto de un pdf que es proporcionado por el usuario.
