@@ -230,7 +230,3 @@ pdf-extractext/
 * [Documentación de UV](https://docs.astral.sh/uv/)
 * [Documentación de MongoDB](https://www.mongodb.com/docs/)
 * [12 Factor App](https://12factor.net/)
-
-```
-
-```
