@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
 
+    # --- CORS ---
+    # Override this in production!
+    CORS_ORIGINS: list[str] = ["*"]
+
     # --- MongoDB ---
     MONGODB_URL: str
     MONGODB_DB_NAME: str
@@ -24,5 +28,4 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
-# Importar siempre desde acá: `from app.config.config import settings`
-settings = Settings()
+settings = Settings()  # type: ignore
