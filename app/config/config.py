@@ -2,7 +2,6 @@
 Configuración centralizada de la aplicación.
 Pydantic-Settings valida y tipea cada variable automáticamente.
 """
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 

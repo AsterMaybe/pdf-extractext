@@ -3,8 +3,7 @@ import os
 
 def setup_logging() -> None:
     """
-    Configuración básica de logs para la app.
-
+    Configuración de logs para la app.
     """
     level_name = os.getenv("LOG_LEVEL", "INFO").upper()
 

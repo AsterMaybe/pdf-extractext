@@ -1,9 +1,7 @@
 import logging
 from app.config.logging_config import setup_logging
 from typing import List
-
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-
 from app.config.mongodb import mongodb
 from app.domain.document import DocumentCreate, DocumentResponse, DocumentUpdate
 from app.repositories.document_repo import DocumentRepository
@@ -12,10 +10,11 @@ from app.services.pdf_to_text import extract_text
 
 router = APIRouter()
 
-#─── Iniciar logger ────────────────────
+# ── Iniciar logger ────────────────────
 
 setup_logging()
 logger = logging.getLogger(__name__)
+
 
 # ── Dependencias ─────────────────────────────────────────────────────────────
 
@@ -55,7 +54,7 @@ async def upload_document(
     extracted_text = extract_text(file_bytes)
 
     doc_create = DocumentCreate(
-        filename=safe_filename,  # Passed safely here
+        filename=safe_filename,
         text_content=extracted_text,
         checksum=checksum,
         file_size_bytes=len(file_bytes)

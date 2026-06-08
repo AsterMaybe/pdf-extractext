@@ -2,17 +2,15 @@
 Gestión de la conexión a MongoDB.
 La conexión se abre al arrancar la app y se cierra al apagarse,
 aprovechando los eventos de ciclo de vida de FastAPI (lifespan).
-
 """
-
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
-
 from app.config.config import settings
 
 
 class MongoDB:
-    """Encapsula el cliente y expone la colección de documentos."""
-
+    """
+    Encapsula el cliente y expone la colección de documentos.
+    """
     client: AsyncIOMotorClient | None = None
 
     def connect(self) -> None:
@@ -28,7 +26,6 @@ class MongoDB:
     def collection(self) -> AsyncIOMotorCollection:
         """
         Devuelve la colección de documentos.
-        Lanza un error claro si se usa antes de conectar.
         """
         if not self.client:
             raise RuntimeError("MongoDB no está conectado. Llamá a connect() primero.")

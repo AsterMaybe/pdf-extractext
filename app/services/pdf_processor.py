@@ -1,6 +1,5 @@
 import hashlib
 import fitz
-
 from fastapi import HTTPException, UploadFile, status
 from app.config.config import settings
 
