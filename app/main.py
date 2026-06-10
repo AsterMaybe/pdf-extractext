@@ -1,10 +1,8 @@
 import logging
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
 from app.config.logging_config import setup_logging
 from app.config.mongodb import mongodb
 from app.controllers.document_controller import router as document_router
@@ -18,15 +16,13 @@ async def lifespan(_app: FastAPI):
     Maneja el ciclo de vida de la aplicación.
     Garantiza que la base de datos esté lista antes de recibir peticiones.
     """
-    logger.info("Starting up: connecting to MongoDB...")
-    mongodb.connect()
-    logger.info("MongoDB connected.")
+    logger.info("Application startup.")
+    await mongodb.connect()
 
     yield
 
-    logger.info("Shutting down: disconnecting MongoDB...")
+    logger.info("Application shutting down.")
     mongodb.disconnect()
-    logger.info("MongoDB disconnected.")
 
 
 app = FastAPI(
@@ -36,6 +32,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+app.include_router(
+    document_router, 
+    prefix="/api/v1/documents", 
+    tags=["Documents"],
+    )
+
 app.add_middleware(
     CORSMiddleware,  # type: ignore
     allow_origins=["*"],  # Modificar mediante settings en entornos de producción
@@ -44,18 +46,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(document_router, prefix="/api/v1/documents", tags=["Documents"])
-
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """Endpoint de control de estado para monitoreo."""
+    """
+    Endpoint de control de estado para monitoreo.
+    """
     return {
         "status": "ok",
         "message": "API operativa y ciclo de vida de la base de datos configurado."
     }
-
-logger.info("API inicializada con éxito. Listo para recibir peticiones.")
 
 
 @app.exception_handler(Exception)

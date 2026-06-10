@@ -12,7 +12,6 @@ router = APIRouter()
 
 # ── Iniciar logger ────────────────────
 
-setup_logging()
 logger = logging.getLogger(__name__)
 
 
