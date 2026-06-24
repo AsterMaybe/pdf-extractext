@@ -59,14 +59,18 @@ cd pdf-extractext
 Crea un archivo `.env` en la raíz del proyecto (al mismo nivel que `docker-compose.yml`) con las siguientes variables necesarias para la base de datos y la configuración de la aplicación:
 
 ```env
+# Variables de aplicacion
+PDF_MAX_SIZE_MB=5
+LOG_LEVEL=DEBUG
+CORS_ORIGINS=["http://localhost:3000"]
+SHARED_NETWORK_NAME=test_network
+
+# Variables de mongo
 MONGO_USER=admin
 MONGO_PASSWORD=password
-MONGO_NAME=pdf_db
-MONGO_COLLECTION=extracted_texts
-PDF_MAX_SIZE_MB=5
-SHARED_NETWORK_NAME=network_name
-LOG_LEVEL=DEBUG
-CORS_ORIGINS='["http://localhost:3000"]'
+MONGODB_DB_NAME=pdf_db
+MONGODB_COLLECTION=extracted_texts
+MONGODB_URL=mongodb://admin:password@localhost:27017
 
 ```
 
