@@ -24,7 +24,12 @@ class Settings(BaseSettings):
     PDF_MAX_SIZE_MB: int = 5  # Default por si no hay .env
 
     # Configuración para Pydantic
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
 
 
 settings = Settings()  # type: ignore

@@ -6,34 +6,40 @@ from app.config.config import settings
 # ── Constantes ──────────────────────────────────────────────────────────────
 
 PDF_MAGIC_BYTES = b"%PDF"
-MAX_SIZE_BYTES = settings.PDF_MAX_SIZE_MB * 1024 * 1024
 
 
 # ── Funciones públicas ───────────────────────────────────────────────────────
 
 def compute_checksum(file_bytes: bytes) -> str:
-    """
-    Calcula el hash SHA-256 de los bytes dados para evitar duplicados en BD.
-    """
+    """Calcula el hash SHA-256 de los bytes dados para evitar duplicados en BD."""
     return hashlib.sha256(file_bytes).hexdigest()
 
 
-def validate_pdf(file_bytes: bytes, filename: str) -> None:
+async def read_and_validate_size(upload: UploadFile) -> bytes:
     """
-    Valida formato y tamaño del archivo sin persistirlo en disco.
-
-    Raises:
-        HTTPException 400 si el archivo no es PDF o es demasiado grande.
+    Lee el archivo en bloques (chunks) para evitar colapsar la RAM.
+    Valida el tamaño en tiempo real.
     """
-    if len(file_bytes) > MAX_SIZE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"El archivo supera el límite permitido de "
-                f"{settings.PDF_MAX_SIZE_MB} MB."
-            ),
-        )
+    max_size_bytes = settings.PDF_MAX_SIZE_MB * 1024 * 1024
+    content = bytearray()
+    chunk_size = 1024 * 1024  # Leer de a 1 MB por iteración
 
+    while chunk := await upload.read(chunk_size):
+        content.extend(chunk)
+        if len(content) > max_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"El archivo supera el límite permitido de {settings.PDF_MAX_SIZE_MB} MB."
+            )
+
+    return bytes(content)
+
+
+def validate_pdf_format(file_bytes: bytes) -> None:
+    """
+    Valida únicamente el formato del archivo.
+    (El tamaño ya fue validado en la etapa de lectura).
+    """
     # Validación de formato rápida por magic bytes
     if not file_bytes.startswith(PDF_MAGIC_BYTES):
         raise HTTPException(
@@ -50,10 +56,3 @@ def validate_pdf(file_bytes: bytes, filename: str) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El PDF está corrupto o no se puede procesar.",
         )
-
-
-async def read_upload_bytes(upload: UploadFile) -> bytes:
-    """
-    Lee todos los bytes de un UploadFile de FastAPI en memoria.
-    """
-    return await upload.read()

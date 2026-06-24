@@ -151,3 +151,16 @@ class TestDocumentController:
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
         mock_repo.delete.assert_awaited_once_with(sample_doc_response.id)
+
+    def test_upload_document_exceeds_size_limit(self, client, mock_repo):
+        """Si el documento supera los 5MB, debe retornar 400 Bad Request sin intentar guardarlo."""
+        # Simulamos un archivo de exactamente 5 MB + 1 byte
+        oversized_pdf_bytes = b"0" * (5 * 1024 * 1024 + 1)
+
+        response = client.post(
+            "/api/v1/documents/upload",
+            files={"file": ("large_dummy.pdf", oversized_pdf_bytes, "application/pdf")}
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "supera el límite" in response.json()["detail"].lower()

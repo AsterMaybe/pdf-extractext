@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from app.config.mongodb import mongodb
 from app.domain.document import DocumentCreate, DocumentResponse, DocumentUpdate
 from app.repositories.document_repo import DocumentRepository
-from app.services.pdf_processor import compute_checksum, read_upload_bytes, validate_pdf
+from app.services.pdf_processor import compute_checksum, read_and_validate_size, validate_pdf_format
 from app.services.pdf_to_text import extract_text
 
 router = APIRouter()
@@ -32,14 +32,14 @@ async def upload_document(
         repo: DocumentRepository = Depends(get_document_repo)
 ):
     safe_filename = file.filename or "unnamed_document.pdf"
-
     logger.info(f"Starting upload process for file: {safe_filename}")
 
-    file_bytes = await read_upload_bytes(file)
-
+    # 1. Lectura segura (Valida tamaño automáticamente sin colapsar RAM)
+    file_bytes = await read_and_validate_size(file)
     logger.debug(f"Read {len(file_bytes)} bytes from {safe_filename}")
 
-    validate_pdf(file_bytes, safe_filename)
+    # 2. Validar formato
+    validate_pdf_format(file_bytes)
 
     checksum = compute_checksum(file_bytes)
     if await repo.exists_by_checksum(checksum):
