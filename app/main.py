@@ -1,72 +1,86 @@
+import http
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
+
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
 from app.config.logging_config import setup_logging
 from app.config.mongodb import mongodb
-from app.controllers.document_controller import router as document_router
+from app.controllers import document_controller
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """
-    Maneja el ciclo de vida de la aplicación.
-    Garantiza que la base de datos esté lista antes de recibir peticiones.
-    """
-    logger.info("Application startup.")
-    await mongodb.connect()
-
+    logger.info("Application startup: connecting to MongoDB...")
+    mongodb.connect()
     yield
-
-    logger.info("Application shutting down.")
-    mongodb.disconnect()
-
+    logger.info("Application shutdown: disconnecting from MongoDB...")
+    mongodb.close()
 
 app = FastAPI(
-    title="PDF Extractor API",
-    description="API para validación, extracción y persistencia de texto desde PDFs.",
+    title="PDF ExtracText API",
     version="0.1.0",
-    lifespan=lifespan
+    description="API para procesar y extraer texto de documentos PDF.",
+    lifespan=lifespan,
 )
 
-app.include_router(
-    document_router, 
-    prefix="/api/v1/documents", 
-    tags=["Documents"],
+@app.exception_handler(StarletteHTTPException)
+async def rfc9457_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Convierte los errores HTTP estándar (ej. 404, 409) al formato RFC 9457"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "type": "about:blank",
+            "title": http.HTTPStatus(exc.status_code).phrase,
+            "status": exc.status_code,
+            "detail": str(exc.detail),
+            "instance": str(request.url.path)
+        },
+        media_type="application/problem+json"
     )
 
-app.add_middleware(
-    CORSMiddleware,  # type: ignore
-    allow_origins=["*"],  # Modificar mediante settings en entornos de producción
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.get("/health", tags=["Health"])
-async def health_check():
-    """
-    Endpoint de control de estado para monitoreo.
-    """
-    return {
-        "status": "ok",
-        "message": "API operativa y ciclo de vida de la base de datos configurado."
-    }
+@app.exception_handler(RequestValidationError)
+async def rfc9457_validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Convierte los errores de validación (ej. falta un campo o archivo) al formato RFC 9457"""
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "type": "about:blank",
+            "title": "Unprocessable Entity",
+            "status": status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "detail": "La petición contiene datos inválidos o incompletos.",
+            "errors": exc.errors(),
+            "instance": str(request.url.path)
+        },
+        media_type="application/problem+json"
+    )
 
 
 @app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """
-    Captura todas las excepciones no controladas globalmente.
-    Registra el rastreo completo del error y devuelve un error genérico 500 al cliente.
-    """
-    logger.exception(f"Unhandled server error occurred while processing {request.method} {request.url.path}")
+async def rfc9457_global_exception_handler(request: Request, exc: Exception):
+    """Atrapa cualquier error 500 no controlado y lo devuelve en formato RFC 9457 para evitar fugas de información"""
+    logger.exception("Error interno del servidor no controlado")
 
     return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal Server Error. Please try again later."},
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "type": "about:blank",
+            "title": "Internal Server Error",
+            "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "detail": "Ha ocurrido un error inesperado en el servidor. Por favor, intente más tarde.",
+            "instance": str(request.url.path)
+        },
+        media_type="application/problem+json"
     )
+
+
+app.include_router(
+    document_controller.router,
+    prefix="/api/v1/documents",
+    tags=["Documents"]
+)
