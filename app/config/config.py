@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "pdf-extractext"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
+    TZ: str = "UTC"
     CORS_ORIGINS: list[str] = ["*"]
     PDF_MAX_SIZE_MB: int = 5
 
