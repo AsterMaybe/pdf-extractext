@@ -9,7 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config.logging_config import setup_logging
 from app.config.mongodb import mongodb
-from app.controllers import document_controller
+from app.controllers import document_controller, health_controller
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     logger.info("Application startup: connecting to MongoDB...")
-    mongodb.connect()
+    await mongodb.connect()
     yield
     logger.info("Application shutdown: disconnecting from MongoDB...")
-    mongodb.close()
+    mongodb.disconnect()
 
 app = FastAPI(
     title="PDF ExtracText API",
@@ -78,6 +78,11 @@ async def rfc9457_global_exception_handler(request: Request, exc: Exception):
         media_type="application/problem+json"
     )
 
+
+app.include_router(
+    health_controller.router,
+    tags=["System"]
+)
 
 app.include_router(
     document_controller.router,
