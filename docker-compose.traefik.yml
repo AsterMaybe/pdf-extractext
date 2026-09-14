@@ -1,0 +1,24 @@
+# Infraestructura: Traefik (API Gateway / reverse proxy).
+# Se conecta a la red compartida externa y descubre los servicios vía labels.
+# Proyecto aislado: evita que `docker compose up` de otra ficha lo trate como
+# "huérfano" y borre el contenedor (todas las fichas comparten la red externa).
+name: pdf-extractext-gateway
+
+services:
+  traefik:
+    image: traefik:v3.7
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"        # entrypoint web (tráfico de la API)
+      - "8080:8080"    # dashboard/api (solo desarrollo)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+    networks:
+      - shared-network
+
+networks:
+  shared-network:
+    name: ${SHARED_NETWORK_NAME:-default-shared-network}
+    external: true

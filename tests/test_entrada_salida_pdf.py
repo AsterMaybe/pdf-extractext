@@ -1,6 +1,6 @@
 """
 Unit tests for app/services/pdf_processor.py
-Covers: compute_checksum, validate_pdf, read_upload_bytes
+Covers: compute_checksum, validate_pdf_format, validate_file_size, read_and_validate_size
 """
 
 from __future__ import annotations
@@ -12,15 +12,13 @@ from unittest.mock import AsyncMock, patch
 
 import fitz
 import pytest
-from fastapi import HTTPException
 
-# ---------------------------------------------------------------------------
-# Adjust the import path to your project layout
-# ---------------------------------------------------------------------------
+from app.domain.exceptions import FileSizeExceededError, InvalidPDFFormatError
 from app.services.pdf_processor import (
     compute_checksum,
-    read_upload_bytes,
-    validate_pdf,
+    read_and_validate_size,
+    validate_file_size,
+    validate_pdf_format,
 )
 
 # ---------------------------------------------------------------------------
@@ -43,10 +41,8 @@ def _make_pdf_bytes(text: str = "Hello world", n_pages: int = 1) -> bytes:
     doc.close()
     return buf.getvalue()
 
-def _make_oversized_pdf(max_mb: int) -> bytes:
-    header = b"%PDF-1.4\n"
-    padding = b"x" * ((max_mb * 1024 * 1024) + 1)
-    return header + padding
+def _make_oversized_bytes(max_mb: int) -> bytes:
+    return b"x" * ((max_mb * 1024 * 1024) + 1)
 
 # ---------------------------------------------------------------------------
 # compute_checksum
@@ -81,122 +77,128 @@ class TestComputeChecksum:
         assert result == compute_checksum(pdf_bytes)
 
 # ---------------------------------------------------------------------------
-# validate_pdf
+# validate_pdf_format
 # ---------------------------------------------------------------------------
 
-class TestValidatePdf:
+class TestValidatePdfFormat:
     # ── Valid cases ──────────────────────────────────────────────────────────
 
     def test_valid_simple_text_pdf(self):
-        validate_pdf(_load_sample("simple_text.pdf"), "simple_text.pdf")
+        validate_pdf_format(_load_sample("simple_text.pdf"))
 
     def test_valid_multipage_pdf(self):
-        validate_pdf(_load_sample("multipage_text.pdf"), "multipage_text.pdf")
+        validate_pdf_format(_load_sample("multipage_text.pdf"))
 
     def test_valid_mixed_content_pdf(self):
-        validate_pdf(_load_sample("mixed_content.pdf"), "mixed_content.pdf")
+        validate_pdf_format(_load_sample("mixed_content.pdf"))
 
     def test_valid_empty_pdf(self):
-        validate_pdf(_load_sample("empty.pdf"), "empty.pdf")
+        validate_pdf_format(_load_sample("empty.pdf"))
 
     def test_valid_special_chars_pdf(self):
-        validate_pdf(_load_sample("special_chars.pdf"), "special_chars.pdf")
+        validate_pdf_format(_load_sample("special_chars.pdf"))
 
     def test_valid_table_content_pdf(self):
-        validate_pdf(_load_sample("table_content.pdf"), "table_content.pdf")
+        validate_pdf_format(_load_sample("table_content.pdf"))
 
     def test_valid_spaces_only_pdf(self):
-        validate_pdf(_load_sample("spaces_only.pdf"), "spaces_only.pdf")
+        validate_pdf_format(_load_sample("spaces_only.pdf"))
 
     def test_valid_image_content_pdf(self):
-        validate_pdf(_load_sample("image_content.pdf"), "image_content.pdf")
+        validate_pdf_format(_load_sample("image_content.pdf"))
 
     def test_valid_in_memory_pdf(self):
-        validate_pdf(_make_pdf_bytes("Hello"), "in_memory.pdf")
+        validate_pdf_format(_make_pdf_bytes("Hello"))
 
     # ── Invalid format ───────────────────────────────────────────────────────
 
-    def test_raises_400_for_plain_text_file(self):
-        with pytest.raises(HTTPException) as exc_info:
-            validate_pdf(b"This is not a pdf", "doc.txt")
-        assert exc_info.value.status_code == 400
+    def test_raises_for_plain_text_file(self):
+        with pytest.raises(InvalidPDFFormatError):
+            validate_pdf_format(b"This is not a pdf")
 
-    def test_raises_400_for_jpeg_file(self):
+    def test_raises_for_jpeg_file(self):
         fake_jpg = b"\xff\xd8\xff\xe0" + b"\x00" * 100
-        with pytest.raises(HTTPException) as exc_info:
-            validate_pdf(fake_jpg, "photo.jpg")
-        assert exc_info.value.status_code == 400
+        with pytest.raises(InvalidPDFFormatError):
+            validate_pdf_format(fake_jpg)
 
-    def test_raises_400_for_empty_bytes(self):
-        with pytest.raises(HTTPException) as exc_info:
-            validate_pdf(b"", "empty.pdf")
-        assert exc_info.value.status_code == 400
+    def test_raises_for_empty_bytes(self):
+        with pytest.raises(InvalidPDFFormatError):
+            validate_pdf_format(b"")
 
-    def test_raises_400_for_truncated_pdf(self):
+    def test_raises_for_truncated_pdf(self):
         corrupt = b"%PDF-1.4\n%%EOF"
-        with pytest.raises(HTTPException) as exc_info:
-            validate_pdf(corrupt, "corrupt.pdf")
-        assert exc_info.value.status_code == 400
+        with pytest.raises(InvalidPDFFormatError):
+            validate_pdf_format(corrupt)
 
-    def test_raises_400_for_pdf_magic_with_garbage_body(self):
+    def test_raises_for_pdf_magic_with_garbage_body(self):
         garbage = b"%PDF-1.4\n" + b"\x00\x01\x02\x03" * 50
-        with pytest.raises(HTTPException) as exc_info:
-            validate_pdf(garbage, "garbage.pdf")
-        assert exc_info.value.status_code == 400
+        with pytest.raises(InvalidPDFFormatError):
+            validate_pdf_format(garbage)
 
-    # ── Oversized file ───────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# validate_file_size
+# ---------------------------------------------------------------------------
 
-    @patch("app.services.pdf_processor.MAX_SIZE_BYTES", 5 * 1024 * 1024)
+class TestValidateFileSize:
     @patch("app.services.pdf_processor.settings")
-    def test_raises_400_when_file_exceeds_max_size(self, mock_settings):
+    def test_raises_when_file_exceeds_max_size(self, mock_settings):
         mock_settings.PDF_MAX_SIZE_MB = 5
-        oversized = _make_oversized_pdf(5)
-        with pytest.raises(HTTPException) as exc_info:
-            validate_pdf(oversized, "big.pdf")
-        assert exc_info.value.status_code == 400
-        assert "MB" in exc_info.value.detail
+        oversized = _make_oversized_bytes(5)
+        with pytest.raises(FileSizeExceededError) as exc_info:
+            validate_file_size(oversized)
+        assert "5 MB" in str(exc_info.value) or "límite" in str(exc_info.value)
 
-    @patch("app.services.pdf_processor.MAX_SIZE_BYTES", 1 * 1024 * 1024)
     @patch("app.services.pdf_processor.settings")
     def test_exactly_at_max_size_does_not_raise(self, mock_settings):
         mock_settings.PDF_MAX_SIZE_MB = 1
         max_bytes = 1 * 1024 * 1024
-        base = _make_pdf_bytes("limit test")
-        if len(base) <= max_bytes:
-            validate_pdf(base, "at_limit.pdf")
+        validate_file_size(b"a" * max_bytes)
+
+    @patch("app.services.pdf_processor.settings")
+    def test_small_file_does_not_raise(self, mock_settings):
+        mock_settings.PDF_MAX_SIZE_MB = 5
+        validate_file_size(b"%PDF-small")
 
 # ---------------------------------------------------------------------------
-# read_upload_bytes
+# read_and_validate_size
 # ---------------------------------------------------------------------------
 
-class TestReadUploadBytes:
+class TestReadAndValidateSize:
     @pytest.mark.asyncio
     async def test_returns_bytes_from_upload_file(self):
         mock_upload = AsyncMock()
-        mock_upload.read = AsyncMock(return_value=b"pdf bytes here")
-        result = await read_upload_bytes(mock_upload)
+        mock_upload.read = AsyncMock(side_effect=[b"pdf bytes here", b""])
+        result = await read_and_validate_size(mock_upload)
         assert result == b"pdf bytes here"
 
     @pytest.mark.asyncio
-    async def test_calls_read_exactly_once(self):
+    async def test_reads_in_chunks_until_eof(self):
         mock_upload = AsyncMock()
-        mock_upload.read = AsyncMock(return_value=b"data")
-        await read_upload_bytes(mock_upload)
-        mock_upload.read.assert_awaited_once()
+        mock_upload.read = AsyncMock(side_effect=[b"chunk1", b"chunk2", b""])
+        result = await read_and_validate_size(mock_upload)
+        assert result == b"chunk1chunk2"
+
+    @pytest.mark.asyncio
+    async def test_read_called_with_chunk_size(self):
+        mock_upload = AsyncMock()
+        mock_upload.read = AsyncMock(side_effect=[b"x", b""])
+        await read_and_validate_size(mock_upload)
+        first_args = mock_upload.read.await_args_list[0].args
+        assert first_args == (1024 * 1024,)
 
     @pytest.mark.asyncio
     async def test_returns_empty_bytes_for_empty_upload(self):
         mock_upload = AsyncMock()
-        mock_upload.read = AsyncMock(return_value=b"")
-        result = await read_upload_bytes(mock_upload)
+        mock_upload.read = AsyncMock(side_effect=[b""])
+        result = await read_and_validate_size(mock_upload)
         assert result == b""
 
     @pytest.mark.asyncio
     async def test_returns_real_pdf_bytes(self):
         pdf_bytes = _make_pdf_bytes("async read test")
         mock_upload = AsyncMock()
-        mock_upload.read = AsyncMock(return_value=pdf_bytes)
-        result = await read_upload_bytes(mock_upload)
+        mock_upload.read = AsyncMock(side_effect=[pdf_bytes, b""])
+        result = await read_and_validate_size(mock_upload)
         assert result == pdf_bytes
         assert result.startswith(b"%PDF")
 
@@ -207,7 +209,7 @@ class TestReadUploadBytes:
 class TestValidationPipeline:
     """
     Simulate the real service flow up to extraction:
-        read bytes → validate → compute checksum
+        read bytes → validate size → validate format → compute checksum
     """
 
     @pytest.mark.parametrize(
@@ -222,7 +224,8 @@ class TestValidationPipeline:
     )
     def test_pipeline_succeeds_for_validation(self, filename: str):
         raw = _load_sample(filename)
-        validate_pdf(raw, filename)
+        validate_file_size(raw)
+        validate_pdf_format(raw)
         checksum = compute_checksum(raw)
         assert len(checksum) == 64
 

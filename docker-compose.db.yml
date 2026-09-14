@@ -1,3 +1,7 @@
+# Proyecto aislado: evita que `docker compose up` de otra ficha lo trate como
+# "huérfano" y borre el contenedor (todas las fichas comparten la red externa).
+name: pdf-extractext-db
+
 services:
   mongo:
     image: mongo:8.0
@@ -7,7 +11,7 @@ services:
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
-      - TZ=${TZ}$
+      - TZ=${TZ:-UTC}
     volumes:
       - mongo_data:/data/db
     networks:
@@ -15,6 +19,9 @@ services:
 
 volumes:
   mongo_data:
+    # Volumen externo con nombre fijo: conserva los datos entre proyectos/fichas.
+    name: pdf-extractext_mongo_data
+    external: true
 
 networks:
   shared-network:

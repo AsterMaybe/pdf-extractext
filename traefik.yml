@@ -1,0 +1,41 @@
+# Traefik — Configuración estática (install configuration).
+# Fase actual: HTTP-only (entrypoint `web`). TLS/Let's Encrypt queda documentado
+# como bloque comentado más abajo para el paso a HTTPS.
+
+api:
+  dashboard: true
+  # SOLO para local/staging. En producción: dashboard protegido con middleware
+  # BasicAuth o desactivado (insecure: false).
+  insecure: true
+
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    # No exponer contenedores por defecto: solo los que tengan labels traefik.
+    exposedByDefault: false
+    watch: true
+
+log:
+  level: INFO
+
+# ── Paso a HTTPS (Let's Encrypt) ─────────────────────────────────────────────
+# 1. Descomentar el bloque certificatesResolvers y agregar entryPoints websecure.
+# 2. En el compose de la app, cambiar el router a entrypoint websecure + tls.
+#
+# entryPoints:
+#   web:
+#     address: ":80"
+#   websecure:
+#     address: ":443"
+#
+# certificatesResolvers:
+#   letsencrypt:
+#     acme:
+#       email: "admin@tudominio.com"
+#       storage: "/etc/traefik/acme.json"
+#       httpChallenge:
+#         entryPoint: "web"

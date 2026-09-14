@@ -56,7 +56,7 @@ cd pdf-extractext
 
 ### 2. Configurar Variables de Entorno
 
-Crea un archivo `.env` en la raíz del proyecto (al mismo nivel que `docker-compose.yml`) con las siguientes variables necesarias para la base de datos y la configuración de la aplicación:
+Crea un archivo `.env` en la raíz del proyecto (al mismo nivel que `docker-compose.app.yml`) con las siguientes variables necesarias para la base de datos y la configuración de la aplicación:
 
 ```env
 # Variables de aplicacion
@@ -79,26 +79,34 @@ MONGODB_URL=mongodb://admin:password@localhost:27017
 ### Opción 1: Con Docker Compose (Recomendado)
 
 ```bash
-# 1. Crear la red externa (Asegúrate de que el nombre coincida con SHARED_NETWORK_NAME en tu .env)
-docker network create network_name
+# 1. Crear la red externa (debe coincidir con SHARED_NETWORK_NAME en tu .env)
+docker network create test_network
 
 # 2. Levantar la base de datos en segundo plano
 docker compose -f docker-compose.db.yml up -d
 
-# 3. Construir la nueva imagen de la API y levantarla en segundo plano
-docker compose up --build -d
+# 3. Levantar Traefik (API gateway)
+docker compose -f docker-compose.traefik.yml up -d
+
+# 4. Construir la nueva imagen de la API y levantarla en segundo plano
+docker compose -f docker-compose.app.yml up -d --build
 
 ```
 
-Una vez que los contenedores estén corriendo, la API interactiva estará disponible en:
-**[http://localhost:8000/docs](https://www.google.com/search?q=http://localhost:8000/docs)**
+Una vez que los contenedores estén corriendo, la API interactiva estará disponible a través del gateway (Traefik) enviando el host del router:
+
+**[http://api.localhost/docs](https://www.google.com/search?q=http://api.localhost/docs)**
+
+```bash
+curl -H "Host: api.localhost" http://localhost/health
+```
 
 *Nota: Si modificas el archivo `.env` después de la primera ejecución, es necesario destruir el volumen de la base de datos para que tome las nuevas credenciales de inicialización ejecutando `docker compose -f docker-compose.db.yml down -v` antes de volver a levantarla con `docker compose -f docker-compose.db.yml up -d`.*
 
 **Para detener la aplicación de forma limpia:**
 
 ```bash
-docker compose down
+docker compose -f docker-compose.app.yml down
 docker compose -f docker-compose.db.yml down
 
 ```
@@ -108,15 +116,15 @@ docker compose -f docker-compose.db.yml down
 Para garantizar entornos seguros y facilitar la recuperación ante errores, este proyecto utiliza etiquetas (tags) explícitas en las imágenes de Docker en lugar de depender de la etiqueta `:latest`.
 
 **1. Definir una versión (Checkpoint):**
-En el archivo `docker-compose.yml`, la aplicación está configurada para construir y etiquetar una versión específica (ej. `image: api:v1.0.0`). Al ejecutar `docker compose up --build -d`, esta versión queda guardada localmente de forma inmutable.
+En el archivo `docker-compose.app.yml`, la aplicación está configurada para construir y etiquetar una versión específica (ej. `image: myapp:v1.0.0`). Al ejecutar `docker compose -f docker-compose.app.yml up -d --build`, esta versión queda guardada localmente de forma inmutable.
 
 **2. Actualizar a una nueva versión:**
 Cuando se introducen nuevos cambios en el código:
 
-1. Actualiza la etiqueta en el `docker-compose.yml` a la siguiente versión (ej. `image: api:v2.0.0`).
+1. Actualiza la etiqueta en el `docker-compose.app.yml` a la siguiente versión (ej. `image: myapp:v2.0.0`).
 2. Reconstruye y levanta el contenedor:
 ```bash
-docker compose up --build -d
+docker compose -f docker-compose.app.yml up -d --build
 
 ```
 
@@ -125,10 +133,10 @@ docker compose up --build -d
 **3. Rollback (Volver a una versión anterior estable):**
 Si la nueva versión presenta fallas críticas en producción, puedes realizar un "rollback" instantáneo a la versión anterior sin necesidad de volver a construir la imagen:
 
-1. Revierte la etiqueta en el `docker-compose.yml` a la versión estable (ej. `image: api:v1.0`).
+1. Revierte la etiqueta en el `docker-compose.app.yml` a la versión estable (ej. `image: myapp:v1.0`).
 2. Levanta el contenedor descartando la versión rota (sin el flag `--build`):
 ```bash
-docker compose up -d
+docker compose -f docker-compose.app.yml up -d
 
 ```
 
@@ -219,8 +227,10 @@ pdf-extractext/
 │     ├── services/         # Utiliza lo que está en domain (clases, objetos) para orquestar la lógica de negocio.
 │     └── util/             # Herramientas genéricas (cálculos de checksum, validaciones) reutilizables.
 ├── tests/                  # Tests unitarios e integración
-├── docker-compose.db.yml   # Orquestación de la base de datos MongoDB
-├── docker-compose.yml      # Orquestación de la aplicación FastAPI
+├── docker-compose.db.yml       # Orquestación de la base de datos MongoDB
+├── docker-compose.traefik.yml  # Orquestación de Traefik (API gateway / reverse proxy)
+├── docker-compose.app.yml      # Orquestación de la aplicación FastAPI
+├── traefik.yml                 # Configuración estática de Traefik
 ├── pyproject.toml          # Configuración del proyecto y dependencias
 ├── .env                    # Variables de entorno locales (NO subir a Git)
 ├── README.md               # Este archivo

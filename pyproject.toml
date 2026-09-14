@@ -20,9 +20,11 @@ dev = [
     "pytest-asyncio==0.25.3",
     "pytest-cov==6.1.0",
     "httpx==0.28.1",
+    "reportlab>=5.0.1",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["."]

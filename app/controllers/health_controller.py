@@ -7,6 +7,16 @@ from app.config.mongodb import mongodb
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
+@router.get("/health/live", summary="Verifica que la aplicación esté viva", response_class=JSONResponse)
+async def health_live():
+    """
+    Liveness para balanceadores/reverse proxies (Traefik).
+    Solo comprueba que el proceso responde; no toca la base de datos.
+    """
+    return JSONResponse(status_code=status.HTTP_200_OK, content={"status": "ok"})
+
+
 @router.get("/health", summary="Verifica el estado del sistema", response_class=JSONResponse)
 async def health_check():
     """
