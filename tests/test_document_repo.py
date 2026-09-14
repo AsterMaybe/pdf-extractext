@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from unittest.mock import AsyncMock, MagicMock
 
 from app.domain.document import DocumentCreate, DocumentUpdate
+from app.domain.exceptions import DocumentNotFoundError
 from app.repositories.document_repo import DocumentRepository
 
 
@@ -92,11 +93,11 @@ class TestDocumentRepository:
         assert result.id == valid_object_id
         mock_collection.find_one.assert_awaited_once_with({"_id": ObjectId(valid_object_id)})
 
-    async def test_get_by_id_not_found_raises_404(self, repo, mock_collection, valid_object_id):
+    async def test_get_by_id_not_found_raises_domain_error(self, repo, mock_collection, valid_object_id):
         mock_collection.find_one.return_value = None
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(DocumentNotFoundError) as exc_info:
             await repo.get_by_id(valid_object_id)
-        assert exc_info.value.status_code == 404
+        assert f"Documento con id '{valid_object_id}' no encontrado." == str(exc_info.value)
 
     async def test_get_by_id_invalid_format_raises_400(self, repo):
         with pytest.raises(HTTPException) as exc_info:
@@ -111,11 +112,11 @@ class TestDocumentRepository:
         await repo.delete(valid_object_id)
         mock_collection.delete_one.assert_awaited_once_with({"_id": ObjectId(valid_object_id)})
 
-    async def test_delete_not_found_raises_404(self, repo, mock_collection, valid_object_id):
+    async def test_delete_not_found_raises_domain_error(self, repo, mock_collection, valid_object_id):
         mock_delete_result = MagicMock()
         mock_delete_result.deleted_count = 0
         mock_collection.delete_one.return_value = mock_delete_result
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(DocumentNotFoundError) as exc_info:
             await repo.delete(valid_object_id)
-        assert exc_info.value.status_code == 404
+        assert f"Documento con id '{valid_object_id}' no encontrado." == str(exc_info.value)

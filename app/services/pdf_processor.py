@@ -1,7 +1,8 @@
 import hashlib
 import fitz
-from fastapi import HTTPException, UploadFile, status
+from fastapi import UploadFile
 from app.config.config import settings
+from app.domain.exceptions import FileSizeExceededError, InvalidPDFFormatError
 
 # ── Constantes ──────────────────────────────────────────────────────────────
 
@@ -18,21 +19,20 @@ def compute_checksum(file_bytes: bytes) -> str:
 async def read_and_validate_size(upload: UploadFile) -> bytes:
     """
     Lee el archivo en bloques (chunks) para evitar colapsar la RAM.
-    Valida el tamaño en tiempo real.
     """
-    max_size_bytes = settings.PDF_MAX_SIZE_MB * 1024 * 1024
     content = bytearray()
     chunk_size = 1024 * 1024  # Leer de a 1 MB por iteración
 
     while chunk := await upload.read(chunk_size):
         content.extend(chunk)
-        if len(content) > max_size_bytes:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El archivo supera el límite permitido de {settings.PDF_MAX_SIZE_MB} MB."
-            )
 
     return bytes(content)
+
+
+def validate_file_size(file_bytes: bytes) -> None:
+    max_size_bytes = settings.PDF_MAX_SIZE_MB * 1024 * 1024
+    if len(file_bytes) > max_size_bytes:
+        raise FileSizeExceededError(settings.PDF_MAX_SIZE_MB)
 
 
 def validate_pdf_format(file_bytes: bytes) -> None:
@@ -42,17 +42,11 @@ def validate_pdf_format(file_bytes: bytes) -> None:
     """
     # Validación de formato rápida por magic bytes
     if not file_bytes.startswith(PDF_MAGIC_BYTES):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El archivo no es un PDF válido.",
-        )
+        raise InvalidPDFFormatError("El archivo no es un PDF válido.")
 
     # Validación estructural: confirmamos que PyMuPDF puede leerlo
     try:
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         doc.close()
     except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El PDF está corrupto o no se puede procesar.",
-        )
+        raise InvalidPDFFormatError("El PDF está corrupto o no se puede procesar.")

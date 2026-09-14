@@ -10,6 +10,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config.logging_config import setup_logging
 from app.config.mongodb import mongodb
 from app.controllers import document_controller, health_controller
+from app.domain.exceptions import (
+    DocumentAlreadyExistsError,
+    DocumentNotFoundError,
+    FileSizeExceededError,
+    InvalidPDFFormatError,
+)
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -58,6 +64,52 @@ async def rfc9457_validation_exception_handler(request: Request, exc: RequestVal
             "instance": str(request.url.path)
         },
         media_type="application/problem+json"
+    )
+
+
+@app.exception_handler(DocumentNotFoundError)
+async def rfc9457_document_not_found_handler(request: Request, exc: DocumentNotFoundError):
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={
+            "type": "about:blank",
+            "title": "Not Found",
+            "status": status.HTTP_404_NOT_FOUND,
+            "detail": str(exc),
+            "instance": str(request.url.path),
+        },
+        media_type="application/problem+json",
+    )
+
+
+@app.exception_handler(FileSizeExceededError)
+@app.exception_handler(InvalidPDFFormatError)
+async def rfc9457_pdf_validation_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={
+            "type": "about:blank",
+            "title": "Bad Request",
+            "status": status.HTTP_400_BAD_REQUEST,
+            "detail": str(exc),
+            "instance": str(request.url.path),
+        },
+        media_type="application/problem+json",
+    )
+
+
+@app.exception_handler(DocumentAlreadyExistsError)
+async def rfc9457_document_already_exists_handler(request: Request, exc: DocumentAlreadyExistsError):
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={
+            "type": "about:blank",
+            "title": "Conflict",
+            "status": status.HTTP_409_CONFLICT,
+            "detail": str(exc),
+            "instance": str(request.url.path),
+        },
+        media_type="application/problem+json",
     )
 
 

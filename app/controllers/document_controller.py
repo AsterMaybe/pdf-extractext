@@ -1,12 +1,11 @@
 import logging
 from app.config.logging_config import setup_logging
 from typing import List
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from app.config.mongodb import mongodb
-from app.domain.document import DocumentCreate, DocumentResponse, DocumentUpdate
+from app.domain.document import DocumentResponse, DocumentUpdate
 from app.repositories.document_repo import DocumentRepository
-from app.services.pdf_processor import compute_checksum, read_and_validate_size, validate_pdf_format
-from app.services.pdf_to_text import extract_text
+from app.services.document_service import DocumentService
 
 router = APIRouter()
 
@@ -24,42 +23,20 @@ def get_document_repo() -> DocumentRepository:
     return DocumentRepository(mongodb.collection)
 
 
+def get_document_service(repo: DocumentRepository = Depends(get_document_repo)) -> DocumentService:
+    return DocumentService(repo)
+
+
 # ── Rutas / Endpoints ────────────────────────────────────────────────────────
 
 @router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
         file: UploadFile = File(...),
-        repo: DocumentRepository = Depends(get_document_repo)
+        service: DocumentService = Depends(get_document_service),
 ):
     safe_filename = file.filename or "unnamed_document.pdf"
     logger.info(f"Starting upload process for file: {safe_filename}")
-
-    # 1. Lectura segura (Valida tamaño automáticamente sin colapsar RAM)
-    file_bytes = await read_and_validate_size(file)
-    logger.debug(f"Read {len(file_bytes)} bytes from {safe_filename}")
-
-    # 2. Validar formato
-    validate_pdf_format(file_bytes)
-
-    checksum = compute_checksum(file_bytes)
-    if await repo.exists_by_checksum(checksum):
-        logger.warning(f"Upload rejected: Duplicate checksum {checksum} for file {safe_filename}")
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="El documento ya fue cargado previamente (Checksum duplicado)."
-        )
-
-    logger.debug(f"Extracting text from {safe_filename}")
-    extracted_text = extract_text(file_bytes)
-
-    doc_create = DocumentCreate(
-        filename=safe_filename,
-        text_content=extracted_text,
-        checksum=checksum,
-        file_size_bytes=len(file_bytes)
-    )
-
-    created_doc = await repo.create(doc_create)
+    created_doc = await service.process_and_store_document(file, safe_filename)
     logger.info(
         f"Successfully processed and stored document: {safe_filename} (ID: {getattr(created_doc, 'id', 'unknown')})")
 
