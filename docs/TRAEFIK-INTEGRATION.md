@@ -63,26 +63,25 @@ La suite ahora corre **sin MongoDB viva**:
    ```bash
    uv add --group dev reportlab
    ```
-3. `tests/conftest.py` neutraliza `connect`/`disconnect` del singleton y deja
-   `client = None`:
+3. `tests/conftest.py` neutraliza `connect`/`disconnect` a nivel de clase (no
+   existe un singleton global; el conector se crea en el lifespan de la app):
 
 ```python
 import pytest
 
+from app.config.mongodb import MongoDB
+
 
 @pytest.fixture(autouse=True)
 def _neutralize_mongodb(monkeypatch):
-    from app.config.mongodb import mongodb
-
-    async def _noop_connect() -> None:
+    async def _noop_connect(self, db_url: str, timeout_ms: int = 5000) -> None:
         return None
 
-    async def _noop_disconnect() -> None:
+    async def _noop_disconnect(self) -> None:
         return None
 
-    monkeypatch.setattr(mongodb, "connect", _noop_connect)
-    monkeypatch.setattr(mongodb, "disconnect", _noop_disconnect)
-    monkeypatch.setattr(mongodb, "client", None)
+    monkeypatch.setattr(MongoDB, "connect", _noop_connect)
+    monkeypatch.setattr(MongoDB, "disconnect", _noop_disconnect)
 ```
 
 ### 2.2 Tests (TDD — rojo primero)
@@ -311,13 +310,11 @@ from unittest.mock import AsyncMock
 from fastapi import status
 from fastapi.testclient import TestClient
 
-from app.config.mongodb import mongodb
 from app.main import app
 
 
 class TestHealthLiveness:
     def test_live_returns_200_without_database(self):
-        mongodb.client = None
         with TestClient(app) as client:
             response = client.get("/health/live")
         assert response.status_code == status.HTTP_200_OK
@@ -326,16 +323,15 @@ class TestHealthLiveness:
 
 class TestHealthReadiness:
     def test_health_returns_503_when_database_offline(self):
-        mongodb.client = None
         with TestClient(app) as client:
             response = client.get("/health")
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-        assert response.json()["database"] == "error"
 
     def test_health_returns_200_when_database_online(self):
-        mongodb.client = AsyncMock()
-        mongodb.client.admin.command = AsyncMock(return_value={"ok": 1})
         with TestClient(app) as client:
+            db = app.state.mongodb
+            db._client = AsyncMock()
+            db._client.admin.command = AsyncMock(return_value={"ok": 1})
             response = client.get("/health")
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["status"] == "ok"

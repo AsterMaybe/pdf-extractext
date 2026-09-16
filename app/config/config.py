@@ -10,7 +10,6 @@ class Settings(BaseSettings):
     # --- Aplicación ---
     APP_NAME: str = "pdf-extractext"
     APP_VERSION: str = "0.1.0"
-    DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
 
     # --- CORS ---
@@ -29,11 +28,11 @@ class Settings(BaseSettings):
     MONGODB_URL: str
     MONGODB_DB_NAME: str
     MONGODB_COLLECTION: str
-    MONGODB_USER: str = ""
-    MONGODB_PASSWORD: str = ""
+    MONGODB_SERVER_SELECTION_TIMEOUT_MS: int = 5000
 
     # --- Validación de PDF ---
     PDF_MAX_SIZE_MB: int = 5  # Default por si no hay .env
+    UPLOAD_CHUNK_SIZE_MB: int = 1
 
     # Configuración para Pydantic
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")

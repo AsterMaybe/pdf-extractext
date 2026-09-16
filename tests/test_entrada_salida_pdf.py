@@ -1,6 +1,6 @@
 """
-Unit tests for app/services/pdf_processor.py
-Covers: compute_checksum, validate_pdf_format, validate_file_size, read_and_validate_size
+Unit tests for app/infrastructure/pymupdf_processor.py
+Covers: compute_checksum, validate_pdf_format
 """
 
 from __future__ import annotations
@@ -8,16 +8,13 @@ from __future__ import annotations
 import hashlib
 import io
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 import fitz
 import pytest
 
-from app.domain.exceptions import FileSizeExceededError, InvalidPDFFormatError
-from app.services.pdf_processor import (
+from app.domain.exceptions import InvalidPDFFormatError
+from app.infrastructure.pymupdf_processor import (
     compute_checksum,
-    read_and_validate_size,
-    validate_file_size,
     validate_pdf_format,
 )
 
@@ -40,9 +37,6 @@ def _make_pdf_bytes(text: str = "Hello world", n_pages: int = 1) -> bytes:
     doc.save(buf)
     doc.close()
     return buf.getvalue()
-
-def _make_oversized_bytes(max_mb: int) -> bytes:
-    return b"x" * ((max_mb * 1024 * 1024) + 1)
 
 # ---------------------------------------------------------------------------
 # compute_checksum
@@ -136,80 +130,13 @@ class TestValidatePdfFormat:
             validate_pdf_format(garbage)
 
 # ---------------------------------------------------------------------------
-# validate_file_size
-# ---------------------------------------------------------------------------
-
-class TestValidateFileSize:
-    @patch("app.services.pdf_processor.settings")
-    def test_raises_when_file_exceeds_max_size(self, mock_settings):
-        mock_settings.PDF_MAX_SIZE_MB = 5
-        oversized = _make_oversized_bytes(5)
-        with pytest.raises(FileSizeExceededError) as exc_info:
-            validate_file_size(oversized)
-        assert "5 MB" in str(exc_info.value) or "límite" in str(exc_info.value)
-
-    @patch("app.services.pdf_processor.settings")
-    def test_exactly_at_max_size_does_not_raise(self, mock_settings):
-        mock_settings.PDF_MAX_SIZE_MB = 1
-        max_bytes = 1 * 1024 * 1024
-        validate_file_size(b"a" * max_bytes)
-
-    @patch("app.services.pdf_processor.settings")
-    def test_small_file_does_not_raise(self, mock_settings):
-        mock_settings.PDF_MAX_SIZE_MB = 5
-        validate_file_size(b"%PDF-small")
-
-# ---------------------------------------------------------------------------
-# read_and_validate_size
-# ---------------------------------------------------------------------------
-
-class TestReadAndValidateSize:
-    @pytest.mark.asyncio
-    async def test_returns_bytes_from_upload_file(self):
-        mock_upload = AsyncMock()
-        mock_upload.read = AsyncMock(side_effect=[b"pdf bytes here", b""])
-        result = await read_and_validate_size(mock_upload)
-        assert result == b"pdf bytes here"
-
-    @pytest.mark.asyncio
-    async def test_reads_in_chunks_until_eof(self):
-        mock_upload = AsyncMock()
-        mock_upload.read = AsyncMock(side_effect=[b"chunk1", b"chunk2", b""])
-        result = await read_and_validate_size(mock_upload)
-        assert result == b"chunk1chunk2"
-
-    @pytest.mark.asyncio
-    async def test_read_called_with_chunk_size(self):
-        mock_upload = AsyncMock()
-        mock_upload.read = AsyncMock(side_effect=[b"x", b""])
-        await read_and_validate_size(mock_upload)
-        first_args = mock_upload.read.await_args_list[0].args
-        assert first_args == (1024 * 1024,)
-
-    @pytest.mark.asyncio
-    async def test_returns_empty_bytes_for_empty_upload(self):
-        mock_upload = AsyncMock()
-        mock_upload.read = AsyncMock(side_effect=[b""])
-        result = await read_and_validate_size(mock_upload)
-        assert result == b""
-
-    @pytest.mark.asyncio
-    async def test_returns_real_pdf_bytes(self):
-        pdf_bytes = _make_pdf_bytes("async read test")
-        mock_upload = AsyncMock()
-        mock_upload.read = AsyncMock(side_effect=[pdf_bytes, b""])
-        result = await read_and_validate_size(mock_upload)
-        assert result == pdf_bytes
-        assert result.startswith(b"%PDF")
-
-# ---------------------------------------------------------------------------
 # Integration-style: Validation Pipeline
 # ---------------------------------------------------------------------------
 
 class TestValidationPipeline:
     """
     Simulate the real service flow up to extraction:
-        read bytes → validate size → validate format → compute checksum
+        read bytes → validate format → compute checksum
     """
 
     @pytest.mark.parametrize(
@@ -224,7 +151,6 @@ class TestValidationPipeline:
     )
     def test_pipeline_succeeds_for_validation(self, filename: str):
         raw = _load_sample(filename)
-        validate_file_size(raw)
         validate_pdf_format(raw)
         checksum = compute_checksum(raw)
         assert len(checksum) == 64

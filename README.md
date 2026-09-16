@@ -204,14 +204,11 @@ uv run pytest
 ### Ejecutar Tests Específicos
 
 ```bash
-# Tests de una carpeta específica
-pytest tests/unit/
-
 # Tests de un archivo específico
-pytest tests/test_extract.py
+pytest tests/test_document_controller.py
 
 # Tests con un patrón específico
-pytest -k "test_pdf"
+pytest -k "pdf"
 
 ```
 
@@ -220,13 +217,14 @@ pytest -k "test_pdf"
 ```text
 pdf-extractext/
 ├── app/
-│     ├── config/           # Configuraciones generales (ej. Pydantic Settings y .env).
-│     ├── controllers/      # Recibe las peticiones del usuario (ej. rutas web) y devuelve la respuesta. No lleva lógica.
-│     ├── domain/           # Todo lo que sea para transformar el documento de pdf a texto, extraer, resumirlo.
-│     ├── presentation/     # Relacionado con CRUD y el formato de los datos de salida.
-│     ├── services/         # Utiliza lo que está en domain (clases, objetos) para orquestar la lógica de negocio.
-│     └── util/             # Herramientas genéricas (cálculos de checksum, validaciones) reutilizables.
-├── tests/                  # Tests unitarios e integración
+│     ├── api/               # Capa de presentación: handlers de error RFC 9457, inyección de dependencias y adaptadores HTTP (uploads).
+│     ├── config/            # Configuración centralizada (Pydantic Settings), logging y conexión a MongoDB.
+│     ├── controllers/       # Recibe las peticiones del usuario (rutas web) y devuelve la respuesta. No lleva lógica.
+│     ├── domain/            # Modelos y errores de dominio (RFC 9457: code + detail), sin dependencias de frameworks.
+│     ├── infrastructure/    # Adaptadores concretos a sistemas externos (PyMuPDF/fitz). Implementan los puertos.
+│     ├── repositories/      # Acceso a datos (MongoDB). Única capa que habla con la BD; traduce errores a errores de dominio.
+│     └── services/          # Orquesta la lógica de negocio sobre puertos (Protocols); nunca toca infraestructura.
+├── tests/                   # Tests unitarios e integración (pytest)
 ├── docker-compose.db.yml       # Orquestación de la base de datos MongoDB
 ├── docker-compose.traefik.yml  # Orquestación de Traefik (API gateway / reverse proxy)
 ├── docker-compose.app.yml      # Orquestación de la aplicación FastAPI

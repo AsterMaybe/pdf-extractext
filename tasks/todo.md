@@ -29,3 +29,20 @@
   - Acceptance: documento con arquitectura, TDD+app, infra, wiring y orden de ejecución.
   - Verify: lectura del documento.
   - Files: `docs/TRAEFIK-INTEGRATION.md`
+
+# Task List — traefik-errors
+
+- [x] **Task: TDD traefik-errors (tests rojo)**
+  - Acceptance: `tests/test_traefik_error_endpoints.py` valida rutas `/traefik/errors/429` y `/traefik/errors/503` (RFC 9457); falla al no existir el controlador.
+  - Verify: `uv run pytest tests/test_traefik_error_endpoints.py --no-header -q`
+  - Files: `tests/test_traefik_error_endpoints.py`
+
+- [x] **Task: Controlador de fallback Traefik (verde)**
+  - Acceptance: endpoint 429 y 503 devuelven `application/problem+json` con `type/title/status/detail/instance` en español.
+  - Verify: `uv run pytest tests/test_traefik_error_endpoints.py`
+  - Files: `app/controllers/traefik_error_controller.py`, `app/main.py`
+
+- [x] **Task: Middlewares Traefik en docker-compose.app.yml**
+  - Acceptance: labels `ratelimit`, `cb`, `errors` declarados y encadenados en el router `pdf-app`.
+  - Verify: `docker compose -f docker-compose.app.yml config`
+  - Files: `docker-compose.app.yml`

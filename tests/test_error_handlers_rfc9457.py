@@ -9,7 +9,7 @@ consolidación de los handlers duplicados.
 from fastapi import status
 from fastapi.testclient import TestClient
 
-from app.controllers.document_controller import get_document_repo
+from app.api.dependencies import get_document_repo
 from app.domain.exceptions import DocumentNotFoundError
 from app.main import app
 

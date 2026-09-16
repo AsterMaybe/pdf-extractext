@@ -10,6 +10,7 @@ from app.domain.exceptions import (
     DocumentNotFoundError,
     FileSizeExceededError,
     InvalidPDFFormatError,
+    PDFProcessingError,
 )
 from app.domain.problem_detail import ProblemDetail
 
@@ -53,25 +54,30 @@ class TestProblemDetailModel:
         assert "errors" not in data
 
 
-class TestHttpStatusByExceptionMap:
+class TestHttpStatusByCodeMap:
     """Todo error de dominio debe tener su código HTTP en el registro (OCP)."""
 
     def test_document_not_found_is_404(self):
-        from app.api.exception_handlers import HTTP_STATUS_BY_EXCEPTION
+        from app.api.exception_handlers import HTTP_STATUS_BY_CODE
 
-        assert HTTP_STATUS_BY_EXCEPTION[DocumentNotFoundError] == status.HTTP_404_NOT_FOUND
+        assert HTTP_STATUS_BY_CODE[DocumentNotFoundError.code] == status.HTTP_404_NOT_FOUND
 
     def test_already_exists_is_409(self):
-        from app.api.exception_handlers import HTTP_STATUS_BY_EXCEPTION
+        from app.api.exception_handlers import HTTP_STATUS_BY_CODE
 
-        assert HTTP_STATUS_BY_EXCEPTION[DocumentAlreadyExistsError] == status.HTTP_409_CONFLICT
+        assert HTTP_STATUS_BY_CODE[DocumentAlreadyExistsError.code] == status.HTTP_409_CONFLICT
 
     def test_file_size_exceeded_is_400(self):
-        from app.api.exception_handlers import HTTP_STATUS_BY_EXCEPTION
+        from app.api.exception_handlers import HTTP_STATUS_BY_CODE
 
-        assert HTTP_STATUS_BY_EXCEPTION[FileSizeExceededError] == status.HTTP_400_BAD_REQUEST
+        assert HTTP_STATUS_BY_CODE[FileSizeExceededError.code] == status.HTTP_400_BAD_REQUEST
 
     def test_invalid_pdf_format_is_400(self):
-        from app.api.exception_handlers import HTTP_STATUS_BY_EXCEPTION
+        from app.api.exception_handlers import HTTP_STATUS_BY_CODE
 
-        assert HTTP_STATUS_BY_EXCEPTION[InvalidPDFFormatError] == status.HTTP_400_BAD_REQUEST
+        assert HTTP_STATUS_BY_CODE[InvalidPDFFormatError.code] == status.HTTP_400_BAD_REQUEST
+
+    def test_pdf_processing_error_is_422(self):
+        from app.api.exception_handlers import HTTP_STATUS_BY_CODE
+
+        assert HTTP_STATUS_BY_CODE[PDFProcessingError.code] == status.HTTP_422_UNPROCESSABLE_CONTENT

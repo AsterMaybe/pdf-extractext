@@ -16,8 +16,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pytest==8.3.5",
-    "pytest-asyncio==0.25.3",
+    "pytest>=8.4,<10",
+    "pytest-asyncio>=1.4.0,<2.0",
     "pytest-cov==6.1.0",
     "httpx==0.28.1",
     "reportlab>=5.0.1",

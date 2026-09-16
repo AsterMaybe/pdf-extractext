@@ -3,6 +3,8 @@ import os
 import sys
 import time
 
+from app.config.config import settings
+
 
 def setup_logging() -> None:
     """
@@ -23,7 +25,7 @@ def setup_logging() -> None:
     console_handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(settings.LOG_LEVEL.upper())
     root_logger.handlers = [console_handler]
 
     for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):

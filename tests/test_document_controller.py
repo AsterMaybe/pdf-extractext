@@ -12,8 +12,10 @@ import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
-from app.controllers.document_controller import get_document_repo
+from app.api.dependencies import get_document_repo
 from app.domain.document import DocumentResponse
+from app.domain.exceptions import DocumentAlreadyExistsError
+from app.domain.pagination import PageQuery
 from app.main import app
 
 
@@ -108,8 +110,24 @@ class TestDocumentController:
         # Confirmar que nunca intentó guardar
         mock_repo.create.assert_not_called()
 
+    def test_upload_duplicate_race_returns_409(self, client, mock_repo):
+        """Red de seguridad TOCTOU: si la BD rechaza el duplicado, sigue siendo 409."""
+        # El pre-check no detecta el duplicado, pero el índice único sí lo rechaza.
+        mock_repo.exists_by_checksum.return_value = False
+        mock_repo.create.side_effect = DocumentAlreadyExistsError("checksum-race")
+
+        pdf_bytes = make_dummy_pdf()
+        response = client.post(
+            "/api/v1/documents/upload",
+            files={"file": ("dummy.pdf", pdf_bytes, "application/pdf")}
+        )
+
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert "ya fue cargado previamente" in response.json()["detail"]
+        mock_repo.create.assert_awaited_once()
+
     def test_list_documents(self, client, mock_repo, sample_doc_response):
-        """Listar todos los documentos devuelve un array (GET /)."""
+        """Listar documentos devuelve un array paginado (GET /)."""
         mock_repo.get_all.return_value = [sample_doc_response]
 
         response = client.get("/api/v1/documents/")
@@ -119,6 +137,23 @@ class TestDocumentController:
         assert isinstance(data, list)
         assert len(data) == 1
         assert data[0]["id"] == sample_doc_response.id
+        mock_repo.get_all.assert_awaited_once_with(PageQuery(skip=0, limit=100))
+
+    def test_list_documents_with_pagination_params(self, client, mock_repo, sample_doc_response):
+        """Los query params skip/limit se encapsulan en un PageQuery."""
+        mock_repo.get_all.return_value = [sample_doc_response]
+
+        response = client.get("/api/v1/documents/?skip=5&limit=25")
+
+        assert response.status_code == status.HTTP_200_OK
+        mock_repo.get_all.assert_awaited_once_with(PageQuery(skip=5, limit=25))
+
+    def test_list_documents_rejects_out_of_bounds_limit(self, client, mock_repo):
+        """El límite acotado protege contra consultas sin tope."""
+        response = client.get("/api/v1/documents/?limit=100000")
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        mock_repo.get_all.assert_not_awaited()
 
     def test_get_document_by_id(self, client, mock_repo, sample_doc_response):
         """Obtener un documento específico por ID."""

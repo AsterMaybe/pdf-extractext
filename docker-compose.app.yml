@@ -29,6 +29,19 @@ services:
       - "traefik.http.routers.pdf-app.rule=Host(`${DOMAIN_HOST:-api.localhost}`)"
       - "traefik.http.routers.pdf-app.entrypoints=web"
       - "traefik.http.routers.pdf-app.service=pdf-app"
+      # Middlewares encadenados. `traefik-errors` va PRIMERO (outermost) para
+      # poder capturar el 429 del rate-limit y el 503 del circuit-breaker; si
+      # fuera el último, la respuesta de error no pasaría nunca por él.
+      - "traefik.http.routers.pdf-app.middlewares=traefik-errors,ratelimit,cb"
+      # Rate Limit: 100 req/s con burst de 50 (protege la app del abuso)
+      - "traefik.http.middlewares.ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.ratelimit.ratelimit.burst=50"
+      # Circuit Breaker: si el ratio de errores de red supera 0.33, abre el circuito
+      - "traefik.http.middlewares.cb.circuitbreaker.expression=NetworkErrorRatio() > 0.33"
+      # Errors (RFC 9457): delega 429/503 a la app para que responda problem+json
+      - "traefik.http.middlewares.traefik-errors.errors.status=429,503"
+      - "traefik.http.middlewares.traefik-errors.errors.query=/traefik/errors/{status}"
+      - "traefik.http.middlewares.traefik-errors.errors.service=pdf-app"
       # Servicio, puerto interno y estrategia de balanceo
       - "traefik.http.services.pdf-app.loadbalancer.server.port=8000"
       # Sin healthcheck activo en Traefik: probea con la IP del contenedor y
