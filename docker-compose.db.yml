@@ -1,6 +1,6 @@
 # Proyecto aislado: evita que `docker compose up` de otra ficha lo trate como
 # "huérfano" y borre el contenedor (todas las fichas comparten la red externa).
-name: pdf-extractext-db
+name: mongo
 
 services:
   mongo:
