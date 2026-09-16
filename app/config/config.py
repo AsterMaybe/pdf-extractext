@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     # --- Network ---
     SHARED_NETWORK_NAME: str = "test_network"
+    PDF_EXTRACT_SERVICE_URL: str = "http://pdf-extract-service:8000"
 
     # --- MongoDB ---
     MONGODB_URL: str

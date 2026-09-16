@@ -12,7 +12,7 @@ import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
-from app.api.dependencies import get_document_repo
+from app.api.dependencies import get_document_repo, get_pdf_processor
 from app.domain.document import DocumentResponse
 from app.domain.exceptions import DocumentAlreadyExistsError
 from app.domain.pagination import PageQuery
@@ -32,6 +32,19 @@ def make_dummy_pdf() -> bytes:
     return buf.getvalue()
 
 
+class StubProcessor:
+    """Doble de `IPDFProcessor`: extracción determinista sin red."""
+
+    async def validate_format(self, file_bytes: bytes) -> None:
+        return None
+
+    async def compute_checksum(self, file_bytes: bytes) -> str:
+        return "stub-checksum"
+
+    async def extract_text(self, file_bytes: bytes) -> str:
+        return "Texto de prueba de integración"
+
+
 # ── Fixtures ─────────────────────────────────────────────────────────────
 
 @pytest.fixture
@@ -47,6 +60,7 @@ def client(mock_repo):
     Esto intercepta `Depends(get_document_repo)` en las rutas.
     """
     app.dependency_overrides[get_document_repo] = lambda: mock_repo
+    app.dependency_overrides[get_pdf_processor] = lambda: StubProcessor()
     with TestClient(app) as test_client:
         yield test_client
     # Limpiar overrides después del test

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi==0.135.3",
+    "httpx==0.28.1",
     "motor==3.7.1",
     "pydantic==2.12.5",
     "pydantic-settings==2.13.1",
@@ -19,7 +20,6 @@ dev = [
     "pytest>=8.4,<10",
     "pytest-asyncio>=1.4.0,<2.0",
     "pytest-cov==6.1.0",
-    "httpx==0.28.1",
     "reportlab>=5.0.1",
 ]
 

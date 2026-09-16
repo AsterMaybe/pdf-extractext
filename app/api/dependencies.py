@@ -12,7 +12,7 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 
 from app.config.config import settings
 from app.config.mongodb import MongoDB
-from app.infrastructure.pymupdf_processor import PyMuPDFProcessor
+from app.infrastructure.remote_pdf_processor import RemotePdfProcessor
 from app.repositories.document_repo import DocumentRepository
 from app.repositories.health_repo import MongoHealthRepository
 from app.services.document_service import DocumentService
@@ -38,7 +38,7 @@ def get_document_repo(
 
 def get_pdf_processor() -> IPDFProcessor:
     """Instancia única del adaptador de PDF, expuesta como abstracción (DIP)."""
-    return PyMuPDFProcessor()
+    return RemotePdfProcessor()
 
 
 def get_document_service(
