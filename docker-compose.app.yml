@@ -19,6 +19,8 @@ services:
       - MONGODB_DB_NAME=${MONGODB_DB_NAME}
       - MONGODB_COLLECTION=${MONGODB_COLLECTION}
       - TZ=${TZ:-UTC}
+      - PDF_MAX_SIZE_MB=${PDF_MAX_SIZE_MB:-25}
+      - PDF_EXTRACT_SERVICE_URL=${PDF_EXTRACT_SERVICE_URL:-http://microservicio-go-api-1:8080}
       # Opcional: el default de la app ya incluye api.localhost.
       # - ALLOWED_HOSTS=["api.localhost","localhost","127.0.0.1"]
     labels:
@@ -34,8 +36,8 @@ services:
       # fuera el último, la respuesta de error no pasaría nunca por él.
       - "traefik.http.routers.pdf-app.middlewares=traefik-errors,ratelimit,cb"
       # Rate Limit: 100 req/s con burst de 50 (protege la app del abuso)
-      - "traefik.http.middlewares.ratelimit.ratelimit.average=100"
-      - "traefik.http.middlewares.ratelimit.ratelimit.burst=50"
+      - "traefik.http.middlewares.ratelimit.ratelimit.average=300"
+      - "traefik.http.middlewares.ratelimit.ratelimit.burst=100"
       # Circuit Breaker: si el ratio de errores de red supera 0.33, abre el circuito
       - "traefik.http.middlewares.cb.circuitbreaker.expression=NetworkErrorRatio() > 0.33"
       # Errors (RFC 9457): delega 429/503 a la app para que responda problem+json

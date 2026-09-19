@@ -2,14 +2,13 @@
 Configuración centralizada de la aplicación.
 Pydantic-Settings valida y tipea cada variable automáticamente.
 """
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     # --- Aplicación ---
     APP_NAME: str = "pdf-extractext"
-    APP_VERSION: str = "0.1.0"
+    APP_VERSION: str = "0.4.0"
     LOG_LEVEL: str = "INFO"
 
     # --- CORS ---
@@ -23,10 +22,11 @@ class Settings(BaseSettings):
 
     # --- Network ---
     SHARED_NETWORK_NAME: str = "test_network"
-    # URL interna del microservicio Go de extracción: nombre del servicio de
-    # compose (`api`) en la red compartida. Llamadas internas van directo, sin
-    # pasar por Traefik.
-    PDF_EXTRACT_SERVICE_URL: str = "http://api:8080"
+    # URL interna del microservicio Go de extracción. En la red compartida
+    # resuelve tanto por el nombre del contenedor (microservicio-go-api-1)
+    # como por el alias de servicio (`api`). docker-compose.app.yml la
+    # sobreescribe vía env; este default es el fallback local.
+    PDF_EXTRACT_SERVICE_URL: str = "http://microservicio-go-api-1:8080"
 
     # --- MongoDB ---
     MONGODB_URL: str
@@ -39,7 +39,10 @@ class Settings(BaseSettings):
     UPLOAD_CHUNK_SIZE_MB: int = 1
 
     # Configuración para Pydantic
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+    )
 
 
 settings = Settings()  # type: ignore
