@@ -1,143 +1,68 @@
-import http
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, status
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
+from app.api.exception_handlers import install_exception_handlers
+from app.config.config import settings
 from app.config.logging_config import setup_logging
-from app.config.mongodb import mongodb
-from app.controllers import document_controller, health_controller
-from app.domain.exceptions import (
-    DocumentAlreadyExistsError,
-    DocumentNotFoundError,
-    FileSizeExceededError,
-    InvalidPDFFormatError,
-)
+from app.config.mongodb import MongoDB
+from app.controllers import document_controller, health_controller, traefik_error_controller
+from app.repositories.document_repo import DocumentRepository
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    db = MongoDB()
     logger.info("Application startup: connecting to MongoDB...")
-    await mongodb.connect()
-    yield
-    logger.info("Application shutdown: disconnecting from MongoDB...")
-    mongodb.disconnect()
+    try:
+        await db.connect(settings.MONGODB_URL, settings.MONGODB_SERVER_SELECTION_TIMEOUT_MS)
+        document_repo = DocumentRepository(
+            db.get_collection(settings.MONGODB_DB_NAME, settings.MONGODB_COLLECTION)
+        )
+        await document_repo.ensure_indexes()
+    except Exception:
+        await db.disconnect()
+        raise
+    _app.state.mongodb = db
+    try:
+        yield
+    finally:
+        logger.info("Application shutdown: disconnecting from MongoDB...")
+        await db.disconnect()
+
 
 app = FastAPI(
-    title="PDF ExtracText API",
-    version="0.1.0",
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
     description="API para procesar y extraer texto de documentos PDF.",
     lifespan=lifespan,
 )
 
-@app.exception_handler(StarletteHTTPException)
-async def rfc9457_http_exception_handler(request: Request, exc: StarletteHTTPException):
-    """Convierte los errores HTTP estándar (ej. 404, 409) al formato RFC 9457"""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "type": "about:blank",
-            "title": http.HTTPStatus(exc.status_code).phrase,
-            "status": exc.status_code,
-            "detail": str(exc.detail),
-            "instance": str(request.url.path)
-        },
-        media_type="application/problem+json"
-    )
-
-@app.exception_handler(RequestValidationError)
-async def rfc9457_validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Convierte los errores de validación (ej. falta un campo o archivo) al formato RFC 9457"""
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={
-            "type": "about:blank",
-            "title": "Unprocessable Entity",
-            "status": status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "detail": "La petición contiene datos inválidos o incompletos.",
-            "errors": exc.errors(),
-            "instance": str(request.url.path)
-        },
-        media_type="application/problem+json"
-    )
-
-
-@app.exception_handler(DocumentNotFoundError)
-async def rfc9457_document_not_found_handler(request: Request, exc: DocumentNotFoundError):
-    return JSONResponse(
-        status_code=status.HTTP_404_NOT_FOUND,
-        content={
-            "type": "about:blank",
-            "title": "Not Found",
-            "status": status.HTTP_404_NOT_FOUND,
-            "detail": str(exc),
-            "instance": str(request.url.path),
-        },
-        media_type="application/problem+json",
-    )
-
-
-@app.exception_handler(FileSizeExceededError)
-@app.exception_handler(InvalidPDFFormatError)
-async def rfc9457_pdf_validation_handler(request: Request, exc: Exception):
-    return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        content={
-            "type": "about:blank",
-            "title": "Bad Request",
-            "status": status.HTTP_400_BAD_REQUEST,
-            "detail": str(exc),
-            "instance": str(request.url.path),
-        },
-        media_type="application/problem+json",
-    )
-
-
-@app.exception_handler(DocumentAlreadyExistsError)
-async def rfc9457_document_already_exists_handler(request: Request, exc: DocumentAlreadyExistsError):
-    return JSONResponse(
-        status_code=status.HTTP_409_CONFLICT,
-        content={
-            "type": "about:blank",
-            "title": "Conflict",
-            "status": status.HTTP_409_CONFLICT,
-            "detail": str(exc),
-            "instance": str(request.url.path),
-        },
-        media_type="application/problem+json",
-    )
-
-
-@app.exception_handler(Exception)
-async def rfc9457_global_exception_handler(request: Request, exc: Exception):
-    """Atrapa cualquier error 500 no controlado y lo devuelve en formato RFC 9457 para evitar fugas de información"""
-    logger.exception("Error interno del servidor no controlado")
-
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "type": "about:blank",
-            "title": "Internal Server Error",
-            "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
-            "detail": "Ha ocurrido un error inesperado en el servidor. Por favor, intente más tarde.",
-            "instance": str(request.url.path)
-        },
-        media_type="application/problem+json"
-    )
-
-
-app.include_router(
-    health_controller.router,
-    tags=["System"]
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+# RFC 9457: todos los handlers de error se registran centralizadamente.
+install_exception_handlers(app)
+
+app.include_router(health_controller.router, tags=["System"])
 
 app.include_router(
     document_controller.router,
     prefix="/api/v1/documents",
-    tags=["Documents"]
+    tags=["Documents"],
 )
+
+# Fallback de errores de infraestructura (Traefik) en RFC 9457.
+app.include_router(traefik_error_controller.router, tags=["Infrastructure"])

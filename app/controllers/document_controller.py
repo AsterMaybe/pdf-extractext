@@ -1,80 +1,67 @@
 import logging
-from app.config.logging_config import setup_logging
-from typing import List
-from fastapi import APIRouter, Depends, File, UploadFile, status
-from app.config.mongodb import mongodb
+
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+
+from app.api.dependencies import get_document_service
+from app.api.uploads import read_upload_bytes
 from app.domain.document import DocumentResponse, DocumentUpdate
-from app.repositories.document_repo import DocumentRepository
+from app.domain.pagination import PageQuery
 from app.services.document_service import DocumentService
 
 router = APIRouter()
-
-# ── Iniciar logger ────────────────────
-
 logger = logging.getLogger(__name__)
 
-
-# ── Dependencias ─────────────────────────────────────────────────────────────
-
-def get_document_repo() -> DocumentRepository:
-    """
-    Inyecta el repositorio en las rutas instanciándolo con la colección global.
-    """
-    return DocumentRepository(mongodb.collection)
-
-
-def get_document_service(repo: DocumentRepository = Depends(get_document_repo)) -> DocumentService:
-    return DocumentService(repo)
-
+DEFAULT_FILENAME = "unnamed_document.pdf"
 
 # ── Rutas / Endpoints ────────────────────────────────────────────────────────
 
+
 @router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
-        file: UploadFile = File(...),
-        service: DocumentService = Depends(get_document_service),
+    file: UploadFile = File(...),
+    service: DocumentService = Depends(get_document_service),
 ):
-    safe_filename = file.filename or "unnamed_document.pdf"
-    logger.info(f"Starting upload process for file: {safe_filename}")
-    created_doc = await service.process_and_store_document(file, safe_filename)
+    safe_filename = file.filename or DEFAULT_FILENAME
+    logger.info("Starting upload process for file: %s", safe_filename)
+    created_doc = await service.process_and_store_document(await read_upload_bytes(file), safe_filename)
     logger.info(
-        f"Successfully processed and stored document: {safe_filename} (ID: {getattr(created_doc, 'id', 'unknown')})")
-
+        "Successfully processed and stored document: %s (ID: %s)",
+        safe_filename,
+        created_doc.id,
+    )
     return created_doc
 
 
-@router.get("/", response_model=List[DocumentResponse])
-async def list_documents(repo: DocumentRepository = Depends(get_document_repo)):
-    """Obtiene todos los documentos persistidos."""
-    logger.debug("Fetching all documents")
-    return await repo.get_all()
+@router.get("/", response_model=list[DocumentResponse])
+async def list_documents(
+    skip: int = Query(0, ge=0, description="Número de documentos a omitir"),
+    limit: int = Query(100, ge=1, le=500, description="Cantidad máxima por página"),
+    service: DocumentService = Depends(get_document_service),
+):
+    """Obtiene los documentos persistidos con paginación."""
+    logger.debug("Fetching documents: skip=%s limit=%s", skip, limit)
+    return await service.list_documents(PageQuery(skip=skip, limit=limit))
 
 
 @router.get("/{doc_id}", response_model=DocumentResponse)
-async def get_document(doc_id: str, repo: DocumentRepository = Depends(get_document_repo)):
+async def get_document(doc_id: str, service: DocumentService = Depends(get_document_service)):
     """Obtiene un documento especifico por id"""
-    logger.debug(f"Fetching document ID: {doc_id}")
-    return await repo.get_by_id(doc_id)
+    logger.debug("Fetching document ID: %s", doc_id)
+    return await service.get_by_id(doc_id)
 
 
 @router.patch("/{doc_id}", response_model=DocumentResponse)
 async def update_document(
-        doc_id: str,
-        update_data: DocumentUpdate,
-        repo: DocumentRepository = Depends(get_document_repo)
+    doc_id: str,
+    update_data: DocumentUpdate,
+    service: DocumentService = Depends(get_document_service),
 ):
-
-    logger.info(f"Updating document ID {doc_id} with data: {update_data.model_dump(exclude_unset=True)}")
-
-    updated_doc = await repo.update(doc_id, update_data)
-
-    if not updated_doc:
-        logger.warning(f"Update failed: Document ID {doc_id} not found")
-
-    return updated_doc
+    """Actualiza parcialmente un documento (PATCH semántico)."""
+    logger.info("Updating document ID %s", doc_id)
+    return await service.update_document(doc_id, update_data)
 
 
 @router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_document(doc_id: str, repo: DocumentRepository = Depends(get_document_repo)):
-    logger.info(f"Deleting document ID: {doc_id}")
-    await repo.delete(doc_id)
+async def delete_document(doc_id: str, service: DocumentService = Depends(get_document_service)):
+    logger.info("Deleting document ID: %s", doc_id)
+    await service.delete(doc_id)

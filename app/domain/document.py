@@ -38,3 +38,12 @@ class DocumentUpdate(BaseModel):
     """
     filename: str | None = None
     text_content: str | None = None
+
+    def get_changes(self) -> dict[str, object]:
+        """
+        Devuelve sólo los campos provistos por el cliente.
+
+        Encapsula la conversión del modelo (Pydantic) dentro del dominio para
+        que la capa de aplicación no conozca detalles de validación.
+        """
+        return self.model_dump(exclude_unset=True)
