@@ -13,6 +13,7 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_document_repo, get_pdf_processor
+from app.config.config import settings
 from app.domain.document import DocumentResponse
 from app.domain.exceptions import DocumentAlreadyExistsError
 from app.domain.pagination import PageQuery
@@ -202,9 +203,9 @@ class TestDocumentController:
         mock_repo.delete.assert_awaited_once_with(sample_doc_response.id)
 
     def test_upload_document_exceeds_size_limit(self, client, mock_repo):
-        """Si el documento supera los 5MB, debe retornar 400 Bad Request sin intentar guardarlo."""
-        # Simulamos un archivo de exactamente 5 MB + 1 byte
-        oversized_pdf_bytes = b"0" * (5 * 1024 * 1024 + 1)
+        """Si el documento supera el límite configurado, debe retornar 400 sin guardarlo."""
+        # Tamaño límite configurado + 1 byte (no depende de un valor fijo de .env)
+        oversized_pdf_bytes = b"0" * (settings.PDF_MAX_SIZE_MB * 1024 * 1024 + 1)
 
         response = client.post(
             "/api/v1/documents/upload",
