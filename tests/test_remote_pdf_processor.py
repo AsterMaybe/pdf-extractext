@@ -2,10 +2,9 @@
 Unit tests para app/infrastructure/remote_pdf_processor.py.
 
 Cubren el adaptador de `IPDFProcessor` que delega la extracción al
-microservicio, sin levantar red real (httpx se parchea por completo).
+microservicio Go, sin levantar red real (httpx se parchea por completo).
 """
 
-import base64
 import hashlib
 from unittest.mock import MagicMock, patch
 
@@ -19,8 +18,11 @@ from app.infrastructure.remote_pdf_processor import (
     validate_pdf_format,
 )
 
-SERVICE_URL = "http://pdf-extract-service:8000"
+SERVICE_URL = "http://api:8080"
 PDF_BYTES = b"%PDF-1.7 fake content"
+UPLOAD_FILES = {
+    "file": ("document.pdf", PDF_BYTES, "application/pdf"),
+}
 
 
 class TestValidateFormat:
@@ -42,7 +44,7 @@ class TestRemotePdfProcessorExtractText:
         return RemotePdfProcessor(base_url=SERVICE_URL)
 
     @pytest.mark.asyncio
-    async def test_sends_base64_payload_and_returns_text(self):
+    async def test_sends_multipart_upload_and_returns_text(self):
         with patch(
             "app.infrastructure.remote_pdf_processor.httpx.AsyncClient"
         ) as mock_client_cls:
@@ -50,17 +52,17 @@ class TestRemotePdfProcessorExtractText:
             mock_response = MagicMock()
             mock_response.raise_for_status.return_value = None
             mock_response.json.return_value = {
+                "filename": "document.pdf",
+                "extension": "pdf",
+                "mime_type": "application/pdf",
                 "text": "contenido extraído",
-                "page_count": 1,
-                "checksum": "a" * 64,
             }
             mock_client.post.return_value = mock_response
 
             result = await self._processor().extract_text(PDF_BYTES)
 
-        expected_payload = {"pdf_base64": base64.b64encode(PDF_BYTES).decode("ascii")}
         mock_client.post.assert_called_once_with(
-            f"{SERVICE_URL}/extract", json=expected_payload
+            f"{SERVICE_URL}/api/v1/extract", files=UPLOAD_FILES
         )
         assert result == "contenido extraído"
 
@@ -75,8 +77,9 @@ class TestRemotePdfProcessorExtractText:
             with pytest.raises(PDFProcessingError):
                 await self._processor().extract_text(PDF_BYTES)
 
+    @pytest.mark.parametrize("status", [400, 422])
     @pytest.mark.asyncio
-    async def test_rejected_pdf_becomes_invalid_pdf_format_error(self):
+    async def test_rejected_pdf_becomes_invalid_pdf_format_error(self, status):
         with patch(
             "app.infrastructure.remote_pdf_processor.httpx.AsyncClient"
         ) as mock_client_cls:
@@ -84,8 +87,10 @@ class TestRemotePdfProcessorExtractText:
             mock_response = MagicMock()
             mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
                 "client error",
-                request=httpx.Request("POST", f"{SERVICE_URL}/extract"),
-                response=httpx.Response(400, request=httpx.Request("POST", f"{SERVICE_URL}/extract")),
+                request=httpx.Request("POST", f"{SERVICE_URL}/api/v1/extract"),
+                response=httpx.Response(
+                    status, request=httpx.Request("POST", f"{SERVICE_URL}/api/v1/extract")
+                ),
             )
             mock_client.post.return_value = mock_response
 
@@ -101,8 +106,8 @@ class TestRemotePdfProcessorExtractText:
             mock_response = MagicMock()
             mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
                 "server error",
-                request=httpx.Request("POST", f"{SERVICE_URL}/extract"),
-                response=httpx.Response(503, request=httpx.Request("POST", f"{SERVICE_URL}/extract")),
+                request=httpx.Request("POST", f"{SERVICE_URL}/api/v1/extract"),
+                response=httpx.Response(503, request=httpx.Request("POST", f"{SERVICE_URL}/api/v1/extract")),
             )
             mock_client.post.return_value = mock_response
 

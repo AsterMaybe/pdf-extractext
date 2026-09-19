@@ -1,15 +1,21 @@
 """
 Adaptador concreto de `IPDFProcessor` que delega la extracción de texto al
-microservicio pdf-extract-service.
+microservicio Go (microservicio-go).
 
 Vive en `app/infrastructure` para que la capa de aplicación (servicios) nunca
 dependa de un cliente HTTP concreto (Hexagonal / Ports & Adapters). La
 validación de formato y el checksum se mantienen locales (rápidos y sin round
 trip); sólo la extracción de texto viaja por HTTP al microservicio.
+
+Contrato HTTP del microservicio:
+- `POST {PDF_EXTRACT_SERVICE_URL}/api/v1/extract` con multipart/form-data
+  (campo `file` con los bytes del PDF).
+- Respuesta 200: `{"filename", "extension", "mime_type", "text"}`.
+- Errores RFC 9457 en `application/problem+json`: 400 (invalid-file),
+  422 (malformed-pdf), 413 (too-large), 504 (timeout), 500 (server-error).
 """
 
 import asyncio
-import base64
 import hashlib
 import logging
 
@@ -23,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 PDF_MAGIC_BYTES = b"%PDF"
 EXTRACT_TIMEOUT_SECONDS = 30.0
+EXTRACT_PATH = "/api/v1/extract"
+UPLOAD_FIELD = "file"
+UPLOAD_FILENAME = "document.pdf"
+UPLOAD_MEDIA_TYPE = "application/pdf"
 
 
 def compute_checksum(file_bytes: bytes) -> str:
@@ -54,10 +64,10 @@ class RemotePdfProcessor(IPDFProcessor):
         return await asyncio.to_thread(compute_checksum, file_bytes)
 
     async def extract_text(self, file_bytes: bytes) -> str:
-        payload = {"pdf_base64": base64.b64encode(file_bytes).decode("ascii")}
+        files = {UPLOAD_FIELD: (UPLOAD_FILENAME, file_bytes, UPLOAD_MEDIA_TYPE)}
         async with httpx.AsyncClient(timeout=EXTRACT_TIMEOUT_SECONDS) as client:
             try:
-                response = await client.post(f"{self._base_url}/extract", json=payload)
+                response = await client.post(f"{self._base_url}{EXTRACT_PATH}", files=files)
                 response.raise_for_status()
             except httpx.RequestError as exc:
                 logger.exception("No se pudo alcanzar el microservicio de extracción")
@@ -70,7 +80,8 @@ class RemotePdfProcessor(IPDFProcessor):
                     exc.response.status_code,
                     exc.response.text,
                 )
-                if exc.response.status_code == 400:
+                # 400 (invalid-file) y 422 (malformed-pdf) → documento inválido.
+                if exc.response.status_code in (400, 422):
                     raise InvalidPDFFormatError(
                         "El documento no es un PDF válido o está corrupto."
                     ) from exc

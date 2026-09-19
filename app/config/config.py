@@ -23,7 +23,10 @@ class Settings(BaseSettings):
 
     # --- Network ---
     SHARED_NETWORK_NAME: str = "test_network"
-    PDF_EXTRACT_SERVICE_URL: str = "http://pdf-extract-service:8000"
+    # URL interna del microservicio Go de extracción: nombre del servicio de
+    # compose (`api`) en la red compartida. Llamadas internas van directo, sin
+    # pasar por Traefik.
+    PDF_EXTRACT_SERVICE_URL: str = "http://api:8080"
 
     # --- MongoDB ---
     MONGODB_URL: str
@@ -32,7 +35,7 @@ class Settings(BaseSettings):
     MONGODB_SERVER_SELECTION_TIMEOUT_MS: int = 5000
 
     # --- Validación de PDF ---
-    PDF_MAX_SIZE_MB: int = 5  # Default por si no hay .env
+    PDF_MAX_SIZE_MB: int = 15  # Default por si no hay .env
     UPLOAD_CHUNK_SIZE_MB: int = 1
 
     # Configuración para Pydantic
