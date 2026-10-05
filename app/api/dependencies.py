@@ -1,18 +1,17 @@
 """
-Composición de dependencias (DIP).
+Composici��n de dependencias (DIP).
 
 Toda dependencia de infraestructura (MongoDB, repositorios, adaptadores) se
-resuelve acá vía `Depends` y se expone al consumidor como ABSTRACCIÓN (puerto),
+resuelve acǭ v��a `Depends` y se expone al consumidor como ABSTRACCI�"N (puerto),
 nunca como clase concreta. Los tests pueden sobrescribir cualquier puerto con
 `app.dependency_overrides`.
 """
-
 from fastapi import Depends, Request
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from app.config.config import settings
 from app.config.mongodb import MongoDB
-from app.infrastructure.remote_pdf_processor import RemotePdfProcessor
+from app.infrastructure.remote_pdf_processor import RemotePdfProcessor, DocumentGatewayProcessor
 from app.repositories.document_repo import DocumentRepository
 from app.repositories.health_repo import MongoHealthRepository
 from app.services.document_service import DocumentService
@@ -26,7 +25,7 @@ def get_mongodb(request: Request) -> MongoDB:
 
 
 def get_document_collection(db: MongoDB = Depends(get_mongodb)) -> AsyncIOMotorCollection:
-    """Expone la colección de documentos de MongoDB."""
+    """Expone la colecci��n de documentos de MongoDB."""
     return db.get_collection(settings.MONGODB_DB_NAME, settings.MONGODB_COLLECTION)
 
 
@@ -37,15 +36,23 @@ def get_document_repo(
 
 
 def get_pdf_processor() -> IPDFProcessor:
-    """Instancia única del adaptador de PDF, expuesta como abstracción (DIP)."""
+    """Instancia ǧnica del adaptador de PDF, expuesto como abstracciǹ (DIP)."""
     return RemotePdfProcessor()
+
+
+def get_document_gateway_processor() -> IPDFProcessor:
+    """Instancia ǧnica del adaptador del Document Gateway Service, expuesto como abstracciǹ (DIP).
+    Se conecta al microservicio-io en el endpoint /api/v1/documents para operaciones de I/O.
+    """
+    return DocumentGatewayProcessor()
 
 
 def get_document_service(
     repo: IDocumentRepository = Depends(get_document_repo),
     pdf_processor: IPDFProcessor = Depends(get_pdf_processor),
+    document_gateway: IPDFProcessor = Depends(get_document_gateway_processor),
 ) -> DocumentService:
-    return DocumentService(repo, pdf_processor)
+    return DocumentService(repo, pdf_processor, document_gateway)
 
 
 def get_health_repo(db: MongoDB = Depends(get_mongodb)) -> IHealthRepository:

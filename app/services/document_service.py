@@ -1,4 +1,8 @@
-from app.domain.document import DocumentCreate, DocumentResponse, DocumentUpdate
+"""Orquesta la lógica de negocio de documentos sobre sus puertos (DIP)."""
+
+from typing import Any
+
+from app.domain.document import DocumentCreate, DocumentResponse
 from app.domain.exceptions import DocumentAlreadyExistsError
 from app.domain.pagination import PageQuery
 from app.services.ports import IDocumentRepository, IPDFProcessor
@@ -7,39 +11,71 @@ from app.services.ports import IDocumentRepository, IPDFProcessor
 class DocumentService:
     """Orquesta la lógica de negocio de documentos sobre sus puertos (DIP)."""
 
-    def __init__(self, repo: IDocumentRepository, pdf_processor: IPDFProcessor) -> None:
+    def __init__(
+        self,
+        repo: IDocumentRepository,
+        pdf_processor: IPDFProcessor,
+        document_gateway: IPDFProcessor,
+    ) -> None:
         self._repo = repo
         self._pdf_processor = pdf_processor
+        self._document_gateway = document_gateway
 
     async def process_and_store_document(self, file_bytes: bytes, filename: str) -> DocumentResponse:
         """
-        Valida, extrae texto y persiste un PDF recibido como bytes.
+        Orquesta el flujo completo: valida formato → guarda metadata en gateway
+        → extrae texto → persiste en BD.
 
-        El límite de tamaño ya fue aplicado por la capa de presentación
-        (`read_upload_bytes`), por lo que aquí sólo se valida el formato.
+        Flujo:
+        1️⃣ Validar formato (local, sin round-trip)
+        2️⃣ Guardar metadatos en Document Gateway Service (microservicio-io)
+        3️⃣ Extraer texto del Extract Service (microservicio-extract-go)
+        4️⃣ Pre-check duplicados + persistir en MongoDB
+        5️⃣ Retornar respuesta completa
 
         Raises:
-            InvalidPDFFormatError: si el archivo no es un PDF válido.
+            InvalidPDFFormatError: si el archivo no es un PDF vǭlido.
             PDFProcessingError: si no se pudo extraer el texto.
             DocumentAlreadyExistsError: si el checksum ya fue cargado antes.
         """
+        # Paso 1: Validar formato (local, rápido, sin round-trip)
         await self._pdf_processor.validate_format(file_bytes)
 
         checksum = await self._pdf_processor.compute_checksum(file_bytes)
 
-        # Optimización: pre-check para evitar la costosa extracción de texto.
+        # Paso 2: Guardar metadatos en Document Gateway Service (microservicio-io)
+        # Este servicio gestiona el ciclo de vida del documento y devuelve un ID
+        gateway_doc = await self._document_gateway.extract_text(file_bytes)
+        # El gateway devuelve metadata; extraemos el ID del documento creado
+        doc_id = gateway_doc if isinstance(gateway_doc, str) else gateway_doc.get("id", str(gateway_doc))
+
+        # Optimización: pre-check para evitar la costosa extracciòn de texto.
         # La garantía atómica la da el índice único + DuplicateKey del repo
         # (red de seguridad anti-carrera TOCTOU), no este chequeo.
         if await self._repo.exists_by_checksum(checksum):
             raise DocumentAlreadyExistsError(checksum)
 
+        # Paso 3: Extraer texto del Extract Service (microservicio-extract-go)
+        extracted_text = await self._pdf_processor.extract_text(file_bytes)
+
+        # Paso 4: Persistir en MongoDB con texto extraído
         doc_create = DocumentCreate(
             filename=filename,
-            text_content=await self._pdf_processor.extract_text(file_bytes),
+            text_content=extracted_text,
             checksum=checksum,
             file_size_bytes=len(file_bytes),
         )
-        return await self._repo.create(doc_create)
+        created = await self._repo.create(doc_create)
+
+        # Paso 5: Retornar respuesta completa al cliente
+        return DocumentResponse(
+            id=str(created.id),
+            filename=created.filename,
+            text_content=created.text_content,
+            checksum=created.checksum,
+            file_size_bytes=created.file_size_bytes,
+            created_at=str(created.created_at) if created.created_at else None,
+        )
 
     async def list_documents(self, query: PageQuery) -> list[DocumentResponse]:
         return await self._repo.get_all(query)

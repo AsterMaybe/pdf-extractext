@@ -89,3 +89,63 @@ class RemotePdfProcessor(IPDFProcessor):
                     f"El microservicio de extracción falló (HTTP {exc.response.status_code})."
                 ) from exc
         return response.json()["text"]
+
+
+# Document Gateway Processor - connects to the Document Gateway Service (microservicio-io)
+# for document lifecycle management (upload, status, metadata).
+# It follows the same pattern as RemotePdfProcessor but targets the gateway's
+# /api/v1/documents endpoint for creating/retrieving document records.
+class DocumentGatewayProcessor(IPDFProcessor):
+    """Implements `IPDFProcessor` interfacing with the Document Gateway Service."""
+
+    def __init__(self, base_url: str | None = None) -> None:
+        self._base_url = (base_url or settings.DOCUMENT_GATEWAY_URL).rstrip("/")
+
+    async def validate_format(self, file_bytes: bytes) -> None:
+        # Validation is handled locally (magic bytes) or by the gateway; no-op here.
+        pass
+
+    async def compute_checksum(self, file_bytes: bytes) -> str:
+        import hashlib
+        return hashlib.sha256(file_bytes).hexdigest()
+
+    async def extract_text(self, file_bytes: bytes) -> str:
+        """
+        Uploads the PDF to the Document Gateway Service and returns the
+        gateway's response text field (or the full JSON if adapted).
+        The gateway expects multipart/form-data with field name 'file'.
+        """
+        files = {"file": (UPLOAD_FILENAME, file_bytes, UPLOAD_MEDIA_TYPE)}
+        EXTRACT_PATH = "/api/v1/documents"
+        async with httpx.AsyncClient(timeout=EXTRACT_TIMEOUT_SECONDS) as client:
+            try:
+                response = await client.post(f"{self._base_url}{EXTRACT_PATH}", files=files)
+                response.raise_for_status()
+                # The gateway returns document metadata; return the text field if present.
+                data = response.json()
+                if "text" in data:
+                    return data["text"]
+                return str(data)
+            except httpx.RequestError as exc:
+                logger.exception("No se pudo alcanzar el Document Gateway Service")
+                raise PDFProcessingError(
+                    f"Document Gateway Service no disponible: {exc}"
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                logger.exception(
+                    "Document Gateway Service respondió %s: %s",
+                    exc.response.status_code,
+                    exc.response.text,
+                )
+                # Map known gateway errors to domain exceptions
+                if exc.response.status_code in (400, 422):
+                    raise InvalidPDFFormatError(
+                        "El documento no es un PDF válido o está corrupto."
+                    ) from exc
+                if exc.response.status_code == 413:
+                    raise PDFProcessingError(
+                        "El documento excede el límite de tamaño establecido."
+                    ) from exc
+                raise PDFProcessingError(
+                    f"El Document Gateway Service falló (HTTP {exc.response.status_code})."
+                ) from exc
