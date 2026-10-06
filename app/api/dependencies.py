@@ -1,39 +1,40 @@
 """
 Composición de dependencias (DIP).
 
-Toda dependencia de infraestructura (MongoDB, repositorios, adaptadores) se
+Toda dependencia de infraestructura (microservicios HTTP, repositorios, adaptadores) se
 resuelve acá vía `Depends` y se expone al consumidor como ABSTRACCIÓN (puerto),
 nunca como clase concreta. Los tests pueden sobrescribir cualquier puerto con
 `app.dependency_overrides`.
+
+Soporta dos modos de operación:
+La persistencia y su estado se consultan exclusivamente a través del microservicio
+Go de base de datos.
 """
 
+import httpx
 from fastapi import Depends, Request
-from motor.motor_asyncio import AsyncIOMotorCollection
 
 from app.config.config import settings
-from app.config.mongodb import MongoDB
 from app.infrastructure.remote_pdf_processor import RemotePdfProcessor
-from app.repositories.document_repo import DocumentRepository
-from app.repositories.health_repo import MongoHealthRepository
+from app.repositories.http_document_repo import HttpDocumentRepository
+from app.repositories.http_health_repo import HttpHealthRepository
 from app.services.document_service import DocumentService
 from app.services.health_service import HealthService
 from app.services.ports import IHealthRepository, IDocumentRepository, IPDFProcessor
 
 
-def get_mongodb(request: Request) -> MongoDB:
-    """Devuelve la instancia de MongoDB creada en el ciclo de vida de la app."""
-    return request.app.state.mongodb
+def _get_http_client(request: Request) -> httpx.AsyncClient:
+    """Devuelve el cliente HTTP compartido, gestionado por el lifespan."""
+    return request.app.state.db_service_http_client
 
 
-def get_document_collection(db: MongoDB = Depends(get_mongodb)) -> AsyncIOMotorCollection:
-    """Expone la colección de documentos de MongoDB."""
-    return db.get_collection(settings.MONGODB_DB_NAME, settings.MONGODB_COLLECTION)
-
-
-def get_document_repo(
-    collection: AsyncIOMotorCollection = Depends(get_document_collection),
-) -> IDocumentRepository:
-    return DocumentRepository(collection)
+def get_document_repo(request: Request) -> IDocumentRepository:
+    """Retorna el adaptador HTTP del microservicio Go de persistencia."""
+    return HttpDocumentRepository(
+        base_url=settings.DB_SERVICE_URL,
+        timeout=settings.DB_SERVICE_TIMEOUT_SECONDS,
+        client=_get_http_client(request),
+    )
 
 
 def get_pdf_processor() -> IPDFProcessor:
@@ -48,8 +49,13 @@ def get_document_service(
     return DocumentService(repo, pdf_processor)
 
 
-def get_health_repo(db: MongoDB = Depends(get_mongodb)) -> IHealthRepository:
-    return MongoHealthRepository(client=db.client)
+def get_health_repo(request: Request) -> IHealthRepository:
+    """Retorna el adaptador HTTP para el health check del microservicio Go."""
+    return HttpHealthRepository(
+        base_url=settings.DB_SERVICE_URL,
+        timeout=settings.DB_SERVICE_TIMEOUT_SECONDS,
+        client=_get_http_client(request),
+    )
 
 
 def get_health_service(
