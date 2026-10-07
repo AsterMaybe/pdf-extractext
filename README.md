@@ -82,13 +82,10 @@ MONGODB_URL=mongodb://admin:password@localhost:27017
 # 1. Crear la red externa (debe coincidir con SHARED_NETWORK_NAME en tu .env)
 docker network create test_network
 
-# 2. Levantar la base de datos en segundo plano
-docker compose -f docker-compose.db.yml up -d
-
-# 3. Levantar Traefik (API gateway)
+# 2. Levantar Traefik (API gateway)
 docker compose -f docker-compose.traefik.yml up -d
 
-# 4. Construir la nueva imagen de la API y levantarla en segundo plano
+# 3. Construir la nueva imagen de la API y levantarla en segundo plano
 docker compose -f docker-compose.app.yml up -d --build
 
 ```
@@ -107,7 +104,7 @@ curl -H "Host: api.localhost" http://localhost/health
 
 ```bash
 docker compose -f docker-compose.app.yml down
-docker compose -f docker-compose.db.yml down
+docker compose -f docker-compose.traefik.yml down
 
 ```
 

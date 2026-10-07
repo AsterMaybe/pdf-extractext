@@ -5,7 +5,7 @@ Define las abstracciones que `DocumentService` necesita para cumplir su rol de
 orquestador (Hexagonal / Ports & Adapters):
 
 - `IDocumentRepository`: contrato de persistencia. Aislado de la implementación
-  concreta de MongoDB → DIP.
+    concreta del servicio de datos → DIP.
 - `IPDFProcessor`: contrato de procesamiento de PDF (validación, checksum,
   extracción). Permite un test doble sin monkeypatching → TDD-ready.
 

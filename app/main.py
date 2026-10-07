@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -8,33 +9,24 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from app.api.exception_handlers import install_exception_handlers
 from app.config.config import settings
 from app.config.logging_config import setup_logging
-from app.config.mongodb import MongoDB
 from app.controllers import document_controller, health_controller, traefik_error_controller
-from app.repositories.document_repo import DocumentRepository
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
-    db = MongoDB()
-    logger.info("Application startup: connecting to MongoDB...")
-    try:
-        await db.connect(settings.MONGODB_URL, settings.MONGODB_SERVER_SELECTION_TIMEOUT_MS)
-        document_repo = DocumentRepository(
-            db.get_collection(settings.MONGODB_DB_NAME, settings.MONGODB_COLLECTION)
-        )
-        await document_repo.ensure_indexes()
-    except Exception:
-        await db.disconnect()
-        raise
-    _app.state.mongodb = db
+async def lifespan(app: FastAPI):
+    logger.info("Application startup: configuring DB service client...")
+    app.state.db_service_http_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(settings.DB_SERVICE_TIMEOUT_SECONDS),
+        limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+    )
     try:
         yield
     finally:
-        logger.info("Application shutdown: disconnecting from MongoDB...")
-        await db.disconnect()
+        logger.info("Application shutdown: closing DB service client...")
+        await app.state.db_service_http_client.aclose()
 
 
 app = FastAPI(
