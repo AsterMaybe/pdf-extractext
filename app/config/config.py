@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # como por el alias de servicio (`api`). docker-compose.app.yml la
     # sobreescribe vía env; este default es el fallback local.
     PDF_EXTRACT_SERVICE_URL: str = "http://microservicio-go-api-1:8080"
+    # URL del microservicio Document Gateway (I/O). Por defecto apunta al contenedor
+    # docker que se definirá en docker-compose.app.yml; en local usa la misma red.
+    DOCUMENT_GATEWAY_URL: str = "http://microservicio-io:8080"
 
     # --- MongoDB ---
     MONGODB_URL: str
