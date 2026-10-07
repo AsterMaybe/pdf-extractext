@@ -7,9 +7,9 @@ Acceptance criteria:
 
 - **AC1:** Existe un modelo `ProblemDetail` (RFC 9457) como única fuente de verdad para las respuestas de error.
 - **AC2:** Los 6 handlers duplicados de `app/main.py` quedan consolidados detrás del modelo **sin cambiar comportamiento observable** (títulos, detalles en español, `media_type: application/problem+json`, códigos 400/404/409/422/500).
-- **AC3:** Nuevo endpoint `GET /health/live` (liveness) que responde `200 {"status":"ok"}` sin depender de MongoDB; `/health` se mantiene como readiness (ping a MongoDB, 503 si cae).
+- **AC3:** Nuevo endpoint `GET /health/live` (liveness) responde `200 {"status":"ok"}` sin dependencias; `/health` consulta el readiness del microservicio DB Go y devuelve 503 si no está disponible.
 - **AC4:** Config de hosts confiables: `ALLOWED_HOSTS` incluye el host del router de Traefik (`api.localhost`); se elimina `TRUSTED_HOSTS` (código muerto).
-- **AC5:** Suite de tests hermética (no requiere MongoDB viva): `conftest.py` neutraliza `connect`/`disconnect`; `pythonpath = ["."]` en config de pytest; `reportlab` agregado a dependencias dev (lo requiere `tests/test_pdf_to_text.py`).
+- **AC5:** Suite de tests hermética (no requiere MongoDB ni microservicios vivos); adaptadores HTTP probados con clientes mockeados y `reportlab` disponible para `tests/test_pdf_to_text.py`.
 - **AC6:** Nuevos tests (TDD) en verde y toda la suite pasando.
 
 ## Tech Stack
@@ -27,7 +27,6 @@ app/api/exception_handlers.py         → registro central de handlers (nuevo)
 app/main.py                           → usa install_exception_handlers(app)
 app/controllers/health_controller.py  → + GET /health/live
 app/config/config.py                  → ALLOWED_HOSTS ampliados; TRUSTED_HOSTS eliminado
-tests/conftest.py                     → neutraliza MongoDB (nuevo)
 tests/test_problem_detail.py          → unit del modelo + mapa de estados (nuevo)
 tests/test_error_handlers_rfc9457.py  → integración TestClient RFC 9457 (nuevo)
 tests/test_health_controller.py       → /health/live y /health (nuevo)
@@ -45,7 +44,7 @@ async def domain_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 ## Testing Strategy
 - pytest (`testpaths=["tests"]`, `asyncio_mode=auto`).
-- Unit: modelo y mapa de estados. Integración: `TestClient` (lifespan neutralizado vía `conftest.py`).
+- Unit: modelo y mapa de estados. Integración: `TestClient`; las dependencias HTTP se reemplazan en los tests.
 - TDD: primero tests (rojo), luego implementación (verde).
 
 ## Boundaries
@@ -56,7 +55,7 @@ async def domain_exception_handler(request: Request, exc: Exception) -> JSONResp
 ## Success Criteria
 - `uv run pytest` → 100% verde **sin MongoDB corriendo**.
 - `TestClient`: 404, 422, 400, 409 y 500 responden en `application/problem+json` con `type`/`title`/`status`/`detail`/`instance`.
-- `GET /health/live` → `200 {"status":"ok"}` con `mongodb.client is None`.
+- `GET /health/live` → `200 {"status":"ok"}` sin servicios externos.
 - `settings.ALLOWED_HOSTS` contiene `api.localhost`.
 
 ## Open Questions

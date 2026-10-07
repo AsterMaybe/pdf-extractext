@@ -15,12 +15,11 @@ services:
     expose:
       - "8000"
     environment:
-      - MONGODB_URL=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017
-      - MONGODB_DB_NAME=${MONGODB_DB_NAME}
-      - MONGODB_COLLECTION=${MONGODB_COLLECTION}
       - TZ=${TZ:-UTC}
       - PDF_MAX_SIZE_MB=${PDF_MAX_SIZE_MB:-25}
-      - PDF_EXTRACT_SERVICE_URL=${PDF_EXTRACT_SERVICE_URL:-http://microservicio-go-api-1:8080}
+      - PDF_EXTRACT_SERVICE_URL=${PDF_EXTRACT_SERVICE_URL:-http://api:8080}
+      - DB_SERVICE_URL=${DB_SERVICE_URL:-http://microservicio-db-go:8080}
+      - DB_SERVICE_TIMEOUT_SECONDS=${DB_SERVICE_TIMEOUT_SECONDS:-10.0}
       # Opcional: el default de la app ya incluye api.localhost.
       # - ALLOWED_HOSTS=["api.localhost","localhost","127.0.0.1"]
     labels:

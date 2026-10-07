@@ -27,7 +27,7 @@ async def health_check(
 ) -> JSONResponse:
     """
     Realiza un chequeo de salud profundo, verificando tanto
-    la aplicación HTTP como la conexión a la base de datos MongoDB.
+    la aplicación HTTP como la disponibilidad del servicio de persistencia.
     """
     if await service.database_is_healthy():
         return JSONResponse(

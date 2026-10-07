@@ -22,24 +22,23 @@ class Settings(BaseSettings):
 
     # --- Network ---
     SHARED_NETWORK_NAME: str = "test_network"
-    # URL interna del microservicio Go de extracción. En la red compartida
-    # resuelve tanto por el nombre del contenedor (microservicio-go-api-1)
-    # como por el alias de servicio (`api`). docker-compose.app.yml la
-    # sobreescribe vía env; este default es el fallback local.
-    PDF_EXTRACT_SERVICE_URL: str = "http://microservicio-go-api-1:8080"
-    # URL del microservicio Document Gateway (I/O). Por defecto apunta al contenedor
-    # docker que se definirá en docker-compose.app.yml; en local usa la misma red.
+    # Servicios internos accesibles por la red compartida.
+    PDF_EXTRACT_SERVICE_URL: str = "http://api:8080"
     DOCUMENT_GATEWAY_URL: str = "http://microservicio-io:8080"
+    DB_SERVICE_URL: str = "http://microservicio-db-go:8080"
 
     # --- MongoDB ---
-    MONGODB_URL: str
-    MONGODB_DB_NAME: str
-    MONGODB_COLLECTION: str
+    MONGODB_URL: str = "mongodb://localhost:27017"
+    MONGODB_DB_NAME: str = "pdf_db"
+    MONGODB_COLLECTION: str = "extracted_texts"
     MONGODB_SERVER_SELECTION_TIMEOUT_MS: int = 5000
 
     # --- Validación de PDF ---
     PDF_MAX_SIZE_MB: int = 15  # Default por si no hay .env
     UPLOAD_CHUNK_SIZE_MB: int = 1
+
+    # Timeout en segundos para requests al microservicio DB Go.
+    DB_SERVICE_TIMEOUT_SECONDS: float = 10.0
 
     # Configuración para Pydantic
     model_config = SettingsConfigDict(

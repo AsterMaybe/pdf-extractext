@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from app.domain.document import DocumentCreate, DocumentResponse
+from app.domain.document import DocumentCreate, DocumentResponse, DocumentUpdate
 from app.domain.exceptions import DocumentAlreadyExistsError
 from app.domain.pagination import PageQuery
 from app.services.ports import IDocumentRepository, IPDFProcessor
@@ -15,7 +15,7 @@ class DocumentService:
         self,
         repo: IDocumentRepository,
         pdf_processor: IPDFProcessor,
-        document_gateway: IPDFProcessor,
+        document_gateway: IPDFProcessor | None = None,
     ) -> None:
         self._repo = repo
         self._pdf_processor = pdf_processor
@@ -43,11 +43,9 @@ class DocumentService:
 
         checksum = await self._pdf_processor.compute_checksum(file_bytes)
 
-        # Paso 2: Guardar metadatos en Document Gateway Service (microservicio-io)
-        # Este servicio gestiona el ciclo de vida del documento y devuelve un ID
-        gateway_doc = await self._document_gateway.extract_text(file_bytes)
-        # El gateway devuelve metadata; extraemos el ID del documento creado
-        doc_id = gateway_doc if isinstance(gateway_doc, str) else gateway_doc.get("id", str(gateway_doc))
+        # Paso 2: Guardar metadatos en Document Gateway Service (opcional)
+        if self._document_gateway is not None:
+            await self._document_gateway.extract_text(file_bytes)
 
         # Optimización: pre-check para evitar la costosa extracciòn de texto.
         # La garantía atómica la da el índice único + DuplicateKey del repo

@@ -1,7 +1,7 @@
 # Spec: traefik-infra (Capability id: `traefik-infra`)
 
 ## Objective
-Entregar la infraestructura de Traefik como API gateway del monolito: configuración estática (`traefik.yml`), `docker-compose.traefik.yml` separado y estrategia de red compartida.
+Entregar Traefik como API gateway de FastAPI y del extractor Go: configuración estática (`traefik.yml`), `docker-compose.traefik.yml` separado y red compartida.
 
 Acceptance criteria:
 
@@ -9,7 +9,7 @@ Acceptance criteria:
 - **AC2:** `docker-compose.traefik.yml` con imagen `traefik:v3.7` (tag explícito), monta `/var/run/docker.sock` (read-only) y `./traefik.yml` (read-only), publica `80:80` (web) y `8080:8080` (dashboard/api), conectado a la red externa compartida.
 - **AC3:** Resolver Let's Encrypt documentado como bloque comentado (fuera de alcance en esta fase HTTP-only).
 - **AC4:** `docker compose -f docker-compose.traefik.yml config` resuelve sin errores (validación offline).
-- **AC5:** La red compartida es la MISMA en los tres compose files (mismo `${SHARED_NETWORK_NAME}`), es `external: true` en todos (no la crea ningún compose) y se crea explícitamente con `docker network create`.
+- **AC5:** Todos los servicios usan la misma red externa `${SHARED_NETWORK_NAME}`, creada explícitamente una vez. MongoDB y la API DB permanecen internos y no llevan labels de Traefik.
 
 ## Tech Stack / Dependencies
 - Imagen `traefik:v3.7` (Traefik 3.7.x es la rama estable actual, tag conforme a la convención del repo: sin `:latest`).

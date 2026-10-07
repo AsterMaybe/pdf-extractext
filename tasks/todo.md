@@ -1,9 +1,9 @@
 # Task List — Integración Traefik
 
-- [ ] **AGENT-2 · Task: Infra de tests hermética (pythonpath + reportlab + conftest)**
-  - Acceptance: `uv run pytest` recolecta y corre sin MongoDB viva.
+- [ ] **AGENT-2 · Task: Infra de tests hermética (pythonpath + reportlab + HTTP mocks)**
+  - Acceptance: `uv run pytest` recolecta y corre sin servicios externos.
   - Verify: `uv run pytest`
-  - Files: `pyproject.toml`, `tests/conftest.py`, `uv.lock`
+  - Files: `pyproject.toml`, `uv.lock`
 
 - [ ] **AGENT-2 · Task: TDD app-contract (tests rojo)**
   - Acceptance: nuevos tests para `ProblemDetail`, handlers RFC 9457, `/health/live`, `ALLOWED_HOSTS` fallan al no existir la implementación nueva.
@@ -20,10 +20,10 @@
   - Verify: `docker compose -f docker-compose.traefik.yml config`
   - Files: `traefik.yml`, `docker-compose.traefik.yml`
 
-- [ ] **AGENT-2 · Task: traefik-wiring (docker-compose.app.yml + env + README)**
-  - Acceptance: `docker compose config` correcto para app y db; labels/healthcheck presentes.
-  - Verify: `docker compose -f docker-compose.app.yml config`, `docker compose -f docker-compose.db.yml config`
-  - Files: `docker-compose.app.yml`, `env.example`, `README.md`, eliminar `docker-compose.yml`
+- [ ] **AGENT-2 · Task: DB Go + Mongo + Traefik wiring**
+  - Acceptance: los Compose de DB, extractor, gateway y app comparten una red externa; Mongo y DB quedan internos; labels/healthcheck públicos presentes.
+  - Verify: `docker compose config` en los cuatro stacks.
+  - Files: `microservicio-db-go/docker-compose.yml`, `docker-compose.app.yml`, `docker-compose.traefik.yml`, `env.example`, `README.md`
 
 - [ ] **AGENT-2 · Task: Guía final (docs)**
   - Acceptance: documento con arquitectura, TDD+app, infra, wiring y orden de ejecución.
