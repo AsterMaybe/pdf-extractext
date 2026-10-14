@@ -1,0 +1,20 @@
+     ✓ status is 200 OK
+     ✓ has valid JSON output
+
+     checks.........................: 100.00% ✓ 2068      ✗ 0    
+     data_received..................: 85 MB   2.1 MB/s
+     data_sent......................: 3.5 GB  86 MB/s
+     http_req_blocked...............: avg=333.81µs min=0s       med=0s      max=6.84ms  p(90)=614.72µs p(95)=3.14ms  
+     http_req_connecting............: avg=289.84µs min=0s       med=0s      max=5.29ms  p(90)=0s       p(95)=2.75ms  
+     http_req_duration..............: avg=3.03s    min=31.47ms  med=3.05s   max=6.93s   p(90)=5.03s    p(95)=5.66s   
+       { expected_response:true }...: avg=3.03s    min=31.47ms  med=3.05s   max=6.93s   p(90)=5.03s    p(95)=5.66s   
+     http_req_failed................: 0.00%   ✓ 0         ✗ 1034 
+     http_req_receiving.............: avg=1.89ms   min=0s       med=1.05ms  max=70.45ms p(90)=3.74ms   p(95)=5.35ms  
+     http_req_sending...............: avg=113.96ms min=511.49µs med=27.24ms max=3.91s   p(90)=311.52ms p(95)=423.45ms
+     http_req_tls_handshaking.......: avg=0s       min=0s       med=0s      max=0s      p(90)=0s       p(95)=0s      
+     http_req_waiting...............: avg=2.91s    min=29.64ms  med=2.92s   max=6.81s   p(90)=4.85s    p(95)=5.51s   
+     http_reqs......................: 1034    25.141393/s
+     iteration_duration.............: avg=3.04s    min=34.04ms  med=3.06s   max=6.97s   p(90)=5.03s    p(95)=5.67s   
+     iterations.....................: 1034    25.141393/s
+     vus............................: 7       min=7       max=100
+     vus_max........................: 100     min=100     max=100

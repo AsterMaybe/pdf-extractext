@@ -1,0 +1,23 @@
+     ✓ status is 200 OK
+     ✓ has valid JSON output
+     ✓ reports cache path
+
+     cache_hits.....................: 292     7.140365/s
+     cache_misses...................: 594     14.525263/s
+     checks.........................: 100.00% ✓ 2658      ✗ 0    
+     data_received..................: 72 MB   1.8 MB/s
+     data_sent......................: 3.0 GB  73 MB/s
+     http_req_blocked...............: avg=495.61µs min=0s      med=0s       max=10.7ms   p(90)=2.73ms  p(95)=4.19ms 
+     http_req_connecting............: avg=428.23µs min=0s      med=0s       max=10.2ms   p(90)=2.63ms  p(95)=3.77ms 
+     http_req_duration..............: avg=3.56s    min=10.91ms med=2.85s    max=10.82s   p(90)=8.22s   p(95)=9.21s  
+       { expected_response:true }...: avg=3.56s    min=10.91ms med=2.85s    max=10.82s   p(90)=8.22s   p(95)=9.21s  
+     http_req_failed................: 0.00%   ✓ 0         ✗ 886  
+     http_req_receiving.............: avg=10.18ms  min=0s      med=2.09ms   max=640.98ms p(90)=26.17ms p(95)=37.57ms
+     http_req_sending...............: avg=1.01s    min=505.9µs med=171.07ms max=7.23s    p(90)=3.01s   p(95)=5.14s  
+     http_req_tls_handshaking.......: avg=0s       min=0s      med=0s       max=0s       p(90)=0s      p(95)=0s     
+     http_req_waiting...............: avg=2.54s    min=7.02ms  med=1.71s    max=10.45s   p(90)=6.53s   p(95)=7.81s  
+     http_reqs......................: 886     21.665629/s
+     iteration_duration.............: avg=3.59s    min=13.02ms med=2.87s    max=10.87s   p(90)=8.26s   p(95)=9.28s  
+     iterations.....................: 886     21.665629/s
+     vus............................: 3       min=3       max=100
+     vus_max........................: 100     min=100     max=100

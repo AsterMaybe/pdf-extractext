@@ -1,0 +1,4 @@
+POST http://127.0.0.1/extract
+Host: extract.localhost
+Content-Type: multipart/form-data; boundary=----loadtestvariantboundary
+@../loadtest-tools/bodies/body_000.bin
