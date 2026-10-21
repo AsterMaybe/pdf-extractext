@@ -12,6 +12,14 @@ services:
       dockerfile: Dockerfile
     image: myapp:v1.0.0
     restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
     expose:
       - "8000"
     environment:
@@ -25,7 +33,7 @@ services:
     labels:
       - "traefik.enable=true"
       # Red que Traefik debe usar para alcanzar este contenedor (la interpola compose).
-      - "traefik.docker.network=${SHARED_NETWORK_NAME:-default-shared-network}"
+      - "traefik.docker.network=${SHARED_NETWORK_NAME:-test_network}"
       # Router HTTP
       - "traefik.http.routers.pdf-app.rule=Host(`${DOMAIN_HOST:-api.localhost}`)"
       - "traefik.http.routers.pdf-app.entrypoints=web"
@@ -59,5 +67,5 @@ services:
 
 networks:
   shared-network:
-    name: ${SHARED_NETWORK_NAME:-default-shared-network}
+    name: ${SHARED_NETWORK_NAME:-test_network}
     external: true
