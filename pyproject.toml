@@ -9,7 +9,6 @@ dependencies = [
     "httpx==0.28.1",
     "pydantic==2.12.5",
     "pydantic-settings==2.13.1",
-    "pymupdf4llm==1.27.2.2",
     "python-multipart==0.0.24",
     "uvicorn==0.44.0",
 ]
@@ -21,6 +20,8 @@ dev = [
     "pytest-cov==6.1.0",
     "reportlab>=5.0.1",
     "respx>=0.23.0",
+    # Generación de PDFs válidos como fixtures de tests (no se usa en la app).
+    "pymupdf==1.27.2.2",
 ]
 
 [tool.pytest.ini_options]
