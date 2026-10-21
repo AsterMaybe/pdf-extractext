@@ -7,7 +7,8 @@ Los Compose de los repositorios hermanos se conectan por la red externa indicada
 - `api.localhost` → orquestador FastAPI (`monolitico/docker-compose.app.yml`, puerto interno 8000).
 - `extract.localhost` → extractor Go (`microservicio-go/docker-compose.yml`, puerto interno 8080).
 - FastAPI consume `http://api:8080` para extraer y `http://microservicio-db-go:8080` para persistir.
-- El stack `microservicio-db-go` inicia MongoDB, Redis y su API. Los datos persisten en el volumen Docker externo `pdf-extractext_mongo_data`.
+- El stack `microservicio-db-go` inicia MongoDB y su API. Los datos persisten en el volumen Docker externo `pdf-extractext_mongo_data`.
+- El stack `infra` (`monolitico/docker-compose.infra.yml`, proyecto `pdf-extractext-infra`) inicia Redis, la caché de extracciones. Es infraestructura compartida: la consume el extractor (`microservicio-go`) por URL (`REDIS_URL=redis://redis:6379`).
 - El frontend se publica en `http://localhost:5173`.
 
 ## Preparación
@@ -31,17 +32,19 @@ Si el contenedor `mongo` del Compose anterior sigue activo, detenlo con `docker 
 Ejecuta desde `Proyecto` y respeta este orden para que las dependencias estén listas antes de iniciar FastAPI:
 
 ```powershell
+docker compose --env-file monolitico/.env -f monolitico/docker-compose.infra.yml up -d
 docker compose --env-file monolitico/.env -f microservicio-db/docker-compose.yml up -d --build
 docker compose --env-file monolitico/.env -f microservicio-go/docker-compose.yml up -d --build
 docker compose --env-file monolitico/.env -f monolitico/docker-compose.traefik.yml up -d
 docker compose --env-file monolitico/.env -f monolitico/docker-compose.app.yml up -d --build
 ```
 
-`depends_on` espera a que MongoDB esté saludable antes de iniciar la API DB. Los demás proyectos Compose son independientes, por eso se levantan explícitamente.
+`depends_on` espera a que MongoDB esté saludable antes de iniciar la API DB. El extractor, en cambio, hace `PING` a Redis al arrancar y **falla rápido** si no responde: por eso Redis va primero en el orden. Los demás proyectos Compose son independientes, por eso se levantan explícitamente.
 
 ## Verificación
 
 ```powershell
+docker compose --env-file monolitico/.env -f monolitico/docker-compose.infra.yml ps
 docker compose --env-file monolitico/.env -f microservicio-db/docker-compose.yml ps
 docker compose --env-file monolitico/.env -f microservicio-go/docker-compose.yml ps
 docker compose --env-file monolitico/.env -f monolitico/docker-compose.app.yml ps
@@ -61,5 +64,7 @@ docker compose --env-file monolitico/.env -f monolitico/docker-compose.traefik.y
 ## Apagado y datos
 
 Baja los servicios con `docker compose ... down` usando los mismos archivos y `--env-file`. No agregues `-v` si quieres conservar los documentos: MongoDB vive en un volumen nombrado administrado por el Compose de DB. Cambiar `MONGO_USER` o `MONGO_PASSWORD` no cambia las credenciales de un volumen ya inicializado.
+
+Redis se baja con su propio stack (`-f monolitico/docker-compose.infra.yml down`): es un proyecto compose independiente, así que bajar el stack de DB o el de la app no afecta la caché del extractor (y a la inversa). Su volumen es `pdf-extractext_redis_data`; borrarlo solo implica empezar con la caché en frío.
 
 El dashboard está configurado para desarrollo (`api.insecure: true`); no lo expongas así en producción.
