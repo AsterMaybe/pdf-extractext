@@ -76,10 +76,13 @@ DB_SERVICE_URL=http://microservicio-db-go:8080
 # 1. Crear la red externa (debe coincidir con SHARED_NETWORK_NAME en tu .env)
 docker network create test_network
 
-# 2. Levantar Traefik (API gateway)
+# 2. Levantar Redis (caché de extracciones; la consume el microservicio Go)
+docker compose -f docker-compose.infra.yml up -d
+
+# 3. Levantar Traefik (API gateway)
 docker compose -f docker-compose.traefik.yml up -d
 
-# 3. Construir la nueva imagen de la API y levantarla en segundo plano
+# 4. Construir la nueva imagen de la API y levantarla en segundo plano
 docker compose -f docker-compose.app.yml up -d --build
 
 ```
@@ -99,6 +102,7 @@ curl -H "Host: api.localhost" http://localhost/health
 ```bash
 docker compose -f docker-compose.app.yml down
 docker compose -f docker-compose.traefik.yml down
+docker compose -f docker-compose.infra.yml down
 
 ```
 
@@ -218,6 +222,7 @@ pdf-extractext/
 ├── tests/                   # Tests unitarios e integración (pytest)
 ├── docker-compose.traefik.yml  # Orquestación de Traefik (API gateway / reverse proxy)
 ├── docker-compose.app.yml      # Orquestación de la aplicación FastAPI
+├── docker-compose.infra.yml    # Orquestación de Redis (caché compartida de extracciones)
 ├── traefik.yml                 # Configuración estática de Traefik
 ├── pyproject.toml          # Configuración del proyecto y dependencias
 ├── .env                    # Variables de entorno locales (NO subir a Git)
