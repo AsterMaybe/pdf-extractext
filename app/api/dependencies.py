@@ -33,8 +33,11 @@ def get_document_repo(request: Request) -> IDocumentRepository:
 
 
 def get_pdf_processor() -> IPDFProcessor:
-    """Instancia ǧnica del adaptador de PDF, expuesto como abstracciǹ (DIP)."""
-    return RemotePdfProcessor()
+    """Instancia única del adaptador de PDF, expuesto como abstracción (DIP).
+
+    La URL base se inyecta por constructor desde `settings`
+    """
+    return RemotePdfProcessor(base_url=settings.PDF_EXTRACT_SERVICE_URL)
 
 
 def get_document_service(
