@@ -13,7 +13,7 @@ Extraer texto de un pdf que es proporcionado por el usuario.
 
 * Python
 * UV (gestor de dependencias)
-* Base de datos no relacional MongoDB
+* Microservicios Go (extracción de PDF y persistencia)
 * Docker
 
 ## Metodologías
@@ -39,9 +39,7 @@ Las dependencias se encuentran especificadas en el archivo `pyproject.toml` e in
 
 * FastAPI
 * Uvicorn
-* PyMuPDF4LLM (fitz)
-* Requests
-* MongoDB driver asíncrono (Motor / pymongo)
+* httpx (cliente HTTP hacia los microservicios Go)
 * Pydantic y Pydantic Settings
 
 ## Instalación y Setup
@@ -60,18 +58,14 @@ Crea un archivo `.env` en la raíz del proyecto (al mismo nivel que `docker-comp
 
 ```env
 # Variables de aplicacion
-PDF_MAX_SIZE_MB=5
+PDF_MAX_SIZE_MB=25
 LOG_LEVEL=DEBUG
 CORS_ORIGINS=["http://localhost:3000"]
 SHARED_NETWORK_NAME=test_network
 
-# Variables de mongo
-MONGO_USER=admin
-MONGO_PASSWORD=password
-MONGODB_DB_NAME=pdf_db
-MONGODB_COLLECTION=extracted_texts
-MONGODB_URL=mongodb://admin:password@localhost:27017
-
+# URLs de los microservicios Go
+PDF_EXTRACT_SERVICE_URL=http://api:8080
+DB_SERVICE_URL=http://microservicio-db-go:8080
 ```
 
 ## Cómo Ejecutar la Aplicación
@@ -98,7 +92,7 @@ Una vez que los contenedores estén corriendo, la API interactiva estará dispon
 curl -H "Host: api.localhost" http://localhost/health
 ```
 
-*Nota: Si modificas el archivo `.env` después de la primera ejecución, es necesario destruir el volumen de la base de datos para que tome las nuevas credenciales de inicialización ejecutando `docker compose -f docker-compose.db.yml down -v` antes de volver a levantarla con `docker compose -f docker-compose.db.yml up -d`.*
+*Nota: Si modificas el archivo `.env` después de la primera ejecución, es necesario destruir el volumen de la base de datos para que tome las nuevas credenciales de inicialización ejecutando `docker compose -f microservicio-db/docker-compose.yml down -v` antes de volver a levantarla con `docker compose -f microservicio-db/docker-compose.yml up -d`.*
 
 **Para detener la aplicación de forma limpia:**
 
@@ -167,7 +161,7 @@ docker images
 
 ### Opción 2: Ejecución Local (Sin Docker)
 
-Si prefieres correr el código localmente sin contenedores (requiere tener una instancia de MongoDB corriendo localmente en el puerto 27017):
+Si prefieres correr el código localmente sin contenedores (requiere los microservicios Go de extracción y persistencia accesibles por HTTP):
 
 ```bash
 # 1. Instalar UV (si no lo tienes)
@@ -215,14 +209,13 @@ pytest -k "pdf"
 pdf-extractext/
 ├── app/
 │     ├── api/               # Capa de presentación: handlers de error RFC 9457, inyección de dependencias y adaptadores HTTP (uploads).
-│     ├── config/            # Configuración centralizada (Pydantic Settings), logging y conexión a MongoDB.
+│     ├── config/            # Configuración centralizada (Pydantic Settings) y logging.
 │     ├── controllers/       # Recibe las peticiones del usuario (rutas web) y devuelve la respuesta. No lleva lógica.
 │     ├── domain/            # Modelos y errores de dominio (RFC 9457: code + detail), sin dependencias de frameworks.
-│     ├── infrastructure/    # Adaptadores concretos a sistemas externos (PyMuPDF/fitz). Implementan los puertos.
-│     ├── repositories/      # Acceso a datos (MongoDB). Única capa que habla con la BD; traduce errores a errores de dominio.
+│     ├── infrastructure/    # Adaptador HTTP hacia el microservicio de extracción (remote_pdf_processor).
+│     ├── repositories/      # Clientes HTTP hacia los microservicios Go (documentos y health).
 │     └── services/          # Orquesta la lógica de negocio sobre puertos (Protocols); nunca toca infraestructura.
 ├── tests/                   # Tests unitarios e integración (pytest)
-├── docker-compose.db.yml       # Orquestación de la base de datos MongoDB
 ├── docker-compose.traefik.yml  # Orquestación de Traefik (API gateway / reverse proxy)
 ├── docker-compose.app.yml      # Orquestación de la aplicación FastAPI
 ├── traefik.yml                 # Configuración estática de Traefik
