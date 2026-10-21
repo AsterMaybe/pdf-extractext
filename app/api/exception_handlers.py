@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.problems import build_problem_response
+from app.config.config import settings
 from app.domain.exceptions import (
     DomainError,
     DocumentAlreadyExistsError,
@@ -25,6 +26,11 @@ from app.domain.exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _type_uri(slug: str) -> str:
+    """Builds `type = <ERROR_BASE_URL>/<slug>`, matching the Go services."""
+    return f"{settings.ERROR_BASE_URL.rstrip('/')}/{slug}"
 
 # ── Registro de estados por código de error de dominio (punto único de extensión) ──
 
@@ -42,7 +48,12 @@ HTTP_STATUS_BY_CODE: dict[str, int] = {
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """Errores HTTP estándar de Starlette/FastAPI (ej. 404, 405)."""
-    return build_problem_response(request, status_code=exc.status_code, detail=str(exc.detail))
+    return build_problem_response(
+        request,
+        status_code=exc.status_code,
+        detail=str(exc.detail),
+        type_uri=_type_uri("http-error"),
+    )
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -56,6 +67,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         detail="La petición contiene datos inválidos o incompletos.",
         errors=errors,
+        type_uri=_type_uri("validation-error"),
     )
 
 
@@ -66,7 +78,13 @@ async def domain_error_handler(request: Request, exc: DomainError) -> JSONRespon
     por lo que el parámetro tipo el contrato de dominio sin adivinanzas.
     """
     status_code = HTTP_STATUS_BY_CODE.get(exc.code, status.HTTP_500_INTERNAL_SERVER_ERROR)
-    return build_problem_response(request, status_code=status_code, detail=str(exc))
+    slug = exc.code.lower().replace("_", "-")
+    return build_problem_response(
+        request,
+        status_code=status_code,
+        detail=str(exc),
+        type_uri=_type_uri(slug),
+    )
 
 
 async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -76,6 +94,7 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
         request,
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail="Ha ocurrido un error inesperado en el servidor. Por favor, intente más tarde.",
+        type_uri=_type_uri("internal-error"),
     )
 
 
