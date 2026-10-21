@@ -1,0 +1,141 @@
+openapi: 3.0.3
+info:
+  title: PDF Extract API (microservicio de extracción)
+  version: "1.0.0"
+  description: |
+    Contrato compartido entre el Orquestador Light (Python/FastAPI) y el
+    microservicio de extracción (Go/Gin). Documenta el endpoint `POST /extract`
+    que recibe un PDF en multipart/form-data y devuelve el texto extraído.
+    Los errores siguen RFC 9457 (`application/problem+json`).
+servers:
+  - url: http://api:8080
+    description: Microservicio de extracción (red interna Docker)
+  - url: http://extract.localhost
+    description: Vía Traefik (puerto 80)
+paths:
+  /extract:
+    post:
+      summary: Extrae texto de un PDF
+      operationId: extractText
+      tags: [extraction]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Archivo PDF a procesar.
+      responses:
+        '200':
+          description: Texto extraído exitosamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [content, page_count]
+                properties:
+                  content:
+                    type: string
+                    description: Texto extraído del PDF.
+                  page_count:
+                    type: integer
+                    description: Número de páginas del PDF.
+        '400':
+          $ref: '#/components/responses/InvalidFile'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '422':
+          $ref: '#/components/responses/MalformedPdf'
+        '504':
+          $ref: '#/components/responses/Timeout'
+        '500':
+          $ref: '#/components/responses/ServerError'
+components:
+  responses:
+    InvalidFile:
+      description: El archivo no es un PDF válido.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example.com/invalid-file
+            title: Invalid file
+            status: 400
+            detail: El archivo no es un PDF válido o está corrupto.
+            instance: /extract
+    MalformedPdf:
+      description: El PDF está corrupto o no se puede procesar.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example.com/malformed-pdf
+            title: Malformed PDF
+            status: 422
+            detail: El documento no es un PDF válido o está corrupto.
+            instance: /extract
+    TooLarge:
+      description: El archivo excede el tamaño máximo permitido.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example.com/too-large
+            title: File too large
+            status: 413
+            detail: El archivo excede el tamaño máximo permitido.
+            instance: /extract
+    Timeout:
+      description: Tiempo de extracción agotado.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example.com/timeout
+            title: Timeout
+            status: 504
+            detail: La extracción del PDF excedió el tiempo de espera.
+            instance: /extract
+    ServerError:
+      description: Error interno del microservicio de extracción.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example.com/server-error
+            title: Server error
+            status: 500
+            detail: El microservicio de extracción falló.
+            instance: /extract
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, detail, instance]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: URI que identifica el tipo de problema (RFC 9457).
+        title:
+          type: string
+          description: Breve resumen legible del problema.
+        status:
+          type: integer
+          description: Código de estado HTTP.
+        detail:
+          type: string
+          description: Explicación detallada del problema.
+        instance:
+          type: string
+          format: uri-reference
+          description: URI que identifica la ocurrencia específica.
