@@ -20,5 +20,5 @@ services:
 
 networks:
   shared-network:
-    name: ${SHARED_NETWORK_NAME:-default-shared-network}
+    name: ${SHARED_NETWORK_NAME:-test_network}
     external: true
