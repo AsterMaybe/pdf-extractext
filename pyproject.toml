@@ -22,6 +22,8 @@ dev = [
     "respx>=0.23.0",
     # Generación de PDFs válidos como fixtures de tests (no se usa en la app).
     "pymupdf==1.27.2.2",
+    # Parsing del contrato OpenAPI compartido en los tests de contrato.
+    "pyyaml>=6.0.2",
 ]
 
 [tool.pytest.ini_options]
