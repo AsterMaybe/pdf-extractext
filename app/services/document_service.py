@@ -15,37 +15,29 @@ class DocumentService:
         self,
         repo: IDocumentRepository,
         pdf_processor: IPDFProcessor,
-        document_gateway: IPDFProcessor | None = None,
     ) -> None:
         self._repo = repo
         self._pdf_processor = pdf_processor
-        self._document_gateway = document_gateway
 
     async def process_and_store_document(self, file_bytes: bytes, filename: str) -> DocumentResponse:
         """
-        Orquesta el flujo completo: valida formato → guarda metadata en gateway
-        → extrae texto → persiste en BD.
+        Orquesta el flujo completo: valida formato → extrae texto → persiste en BD.
 
         Flujo:
-        1️⃣ Validar formato (local, sin round-trip)
-        2️⃣ Guardar metadatos en Document Gateway Service (microservicio-io)
-        3️⃣ Extraer texto del Extract Service (microservicio-extract-go)
-        4️⃣ Pre-check duplicados + persistir en MongoDB
-        5️⃣ Retornar respuesta completa
+        Validar formato (local, sin round-trip)
+        Extraer texto del Extract Service (microservicio-go)
+        Pre-check duplicados + persistir en MongoDB
+        Retornar respuesta completa
 
         Raises:
             InvalidPDFFormatError: si el archivo no es un PDF vǭlido.
             PDFProcessingError: si no se pudo extraer el texto.
             DocumentAlreadyExistsError: si el checksum ya fue cargado antes.
         """
-        # Paso 1: Validar formato (local, rápido, sin round-trip)
+        # Paso 1: Validar formato
         await self._pdf_processor.validate_format(file_bytes)
 
         checksum = await self._pdf_processor.compute_checksum(file_bytes)
-
-        # Paso 2: Guardar metadatos en Document Gateway Service (opcional)
-        if self._document_gateway is not None:
-            await self._document_gateway.extract_text(file_bytes)
 
         # Optimización: pre-check para evitar la costosa extracciòn de texto.
         # La garantía atómica la da el índice único + DuplicateKey del repo
@@ -53,10 +45,10 @@ class DocumentService:
         if await self._repo.exists_by_checksum(checksum):
             raise DocumentAlreadyExistsError(checksum)
 
-        # Paso 3: Extraer texto del Extract Service (microservicio-extract-go)
+        # Paso 2: Extraer texto del Extract Service (microservicio-go)
         extracted_text = await self._pdf_processor.extract_text(file_bytes)
 
-        # Paso 4: Persistir en MongoDB con texto extraído
+        # Paso 3: Persistir en MongoDB con texto extraído
         doc_create = DocumentCreate(
             filename=filename,
             text_content=extracted_text,
@@ -65,7 +57,7 @@ class DocumentService:
         )
         created = await self._repo.create(doc_create)
 
-        # Paso 5: Retornar respuesta completa al cliente
+        # Paso 4: Retornar respuesta completa al cliente
         return DocumentResponse(
             id=str(created.id),
             filename=created.filename,
