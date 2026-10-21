@@ -20,9 +20,11 @@ def build_problem_response(
     detail: str,
     title: str | None = None,
     errors: list | None = None,
+    type_uri: str = "about:blank",
 ) -> JSONResponse:
     """Construye una respuesta RFC 9457 a partir de un request y el detalle."""
     problem = ProblemDetail(
+        type=type_uri,
         title=title or http.HTTPStatus(status_code).phrase,
         status=status_code,
         detail=detail,
