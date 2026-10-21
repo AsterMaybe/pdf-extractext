@@ -6,15 +6,18 @@ misma interfaz (puerto) que consume DocumentService.
 """
 
 import logging
-from typing import Any
+from typing import Any, NoReturn
 
 import httpx
 
+from app.config.config import settings
 from app.domain.document import DocumentCreate, DocumentResponse
 from app.domain.exceptions import (
     DocumentAlreadyExistsError,
     DocumentNotFoundError,
+    FileSizeExceededError,
     InvalidDocumentIdError,
+    PDFProcessingError,
 )
 from app.domain.pagination import PageQuery
 from app.services.ports import IDocumentRepository
@@ -58,22 +61,20 @@ class HttpDocumentRepository(IDocumentRepository):
             self._client = None
 
     async def exists_by_checksum(self, checksum: str) -> bool:
-        """Verifica si existe un documento con ese checksum via HEAD/GET."""
+        """Verifica duplicados vía el endpoint dedicado del microservicio Go."""
         client = await self._get_client()
         try:
-            # Usamos GET a la lista con filtro implícito: más simple que añadir endpoint
-            # En producción real se añadiría endpoint HEAD /api/v1/documents/checksum/{checksum}
             response = await client.get(
-                f"{self._base_url}/api/v1/documents",
-                params={"skip": 0, "limit": 1},
+                f"{self._base_url}/api/v1/documents/checksum/{checksum}",
                 timeout=self._timeout,
             )
-            # Nota: El microservicio Go no expone filtro por checksum en listado.
-            # Esta implementación hace un workaround consultando y filtrando.
-            # Para producción se recomienda añadir endpoint dedicado en Go.
             if response.status_code == 200:
-                docs = response.json()
-                return any(doc.get("checksum") == checksum for doc in docs)
+                return True
+            if response.status_code == 404:
+                return False
+            logger.warning(
+                "Respuesta inesperada del checksum (%s) — degradando a 'no existe'", response.status_code
+            )
             return False
         except httpx.RequestError:
             logger.exception("Error de red al verificar checksum")
@@ -122,7 +123,6 @@ class HttpDocumentRepository(IDocumentRepository):
             raise InvalidDocumentIdError(str(e)) from e
         finally:
             await self._close_if_owned()
-        return []
 
     async def get_by_id(self, doc_id: str) -> DocumentResponse:
         """Obtiene un documento por ID via GET /api/v1/documents/{id}."""
@@ -185,7 +185,7 @@ class HttpDocumentRepository(IDocumentRepository):
         response: httpx.Response,
         checksum: str | None = None,
         doc_id: str | None = None,
-    ) -> None:
+    ) -> NoReturn:
         """Convierte respuesta de error HTTP en excepción de dominio."""
         content_type = response.headers.get("content-type", "")
         detail = "Error desconocido del servicio de datos"
@@ -206,17 +206,14 @@ class HttpDocumentRepository(IDocumentRepository):
         if status == 409:
             raise DocumentAlreadyExistsError(checksum or "unknown")
         if status == 413:
-            # File too large - mapear a error de dominio existente
-            from app.domain.exceptions import FileSizeExceededError
-            raise FileSizeExceededError(25)  # default max
+            raise FileSizeExceededError(settings.PDF_MAX_SIZE_MB)
+        if status == 422:
+            raise PDFProcessingError(
+                f"El documento fue rechazado por el servicio de datos: {detail}"
+            )
         if status == 503:
-            # Service unavailable / busy
-            from app.domain.exceptions import PDFProcessingError
             raise PDFProcessingError(f"Servicio de datos no disponible: {detail}")
         if status >= 500:
-            from app.domain.exceptions import PDFProcessingError
             raise PDFProcessingError(f"Error interno del servicio de datos: {detail}")
 
-        # Fallback genérico
-        from app.domain.exceptions import PDFProcessingError
         raise PDFProcessingError(f"Error HTTP {status}: {detail}")
