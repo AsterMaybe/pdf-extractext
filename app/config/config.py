@@ -24,18 +24,15 @@ class Settings(BaseSettings):
     SHARED_NETWORK_NAME: str = "test_network"
     # Servicios internos accesibles por la red compartida.
     PDF_EXTRACT_SERVICE_URL: str = "http://api:8080"
-    DOCUMENT_GATEWAY_URL: str = "http://microservicio-io:8080"
     DB_SERVICE_URL: str = "http://microservicio-db-go:8080"
 
-    # --- MongoDB ---
-    MONGODB_URL: str = "mongodb://localhost:27017"
-    MONGODB_DB_NAME: str = "pdf_db"
-    MONGODB_COLLECTION: str = "extracted_texts"
-    MONGODB_SERVER_SELECTION_TIMEOUT_MS: int = 5000
-
     # --- Validación de PDF ---
-    PDF_MAX_SIZE_MB: int = 15  # Default por si no hay .env
+    PDF_MAX_SIZE_MB: int = 25  # Default por si no hay .env
     UPLOAD_CHUNK_SIZE_MB: int = 1
+
+    # --- RFC 9457 ---
+    # Base de las URIs `type` de los errores (mismo esquema que los Go).
+    ERROR_BASE_URL: str = "https://errors.example.com"
 
     # Timeout en segundos para requests al microservicio DB Go.
     DB_SERVICE_TIMEOUT_SECONDS: float = 10.0
