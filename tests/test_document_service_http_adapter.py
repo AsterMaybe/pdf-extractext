@@ -87,9 +87,9 @@ class TestDocumentServiceViaHttpAdapter:
         """El servicio puede crear documentos vía adaptador HTTP."""
         _, _, respx_mock = mock_clients
 
-        # Mock: pre-check (GET /documents) retorna vacío (no existe)
-        respx_mock.get("/api/v1/documents").mock(
-            return_value=httpx.Response(200, json=[])
+        # Mock: pre-check (GET /documents/checksum/{checksum}) retorna 404 (no existe)
+        respx_mock.get("/api/v1/documents/checksum/fake-checksum").mock(
+            return_value=httpx.Response(404)
         )
         # Mock: create (POST /documents) retorna documento creado
         respx_mock.post("/api/v1/documents").mock(
@@ -110,9 +110,8 @@ class TestDocumentServiceViaHttpAdapter:
         _, _, respx_mock = mock_clients
 
         # Mock: pre-check retorna documento existente
-        existing = {"id": "other-id", "checksum": "fake-checksum", "filename": "other.pdf"}
-        respx_mock.get("/api/v1/documents").mock(
-            return_value=httpx.Response(200, json=[existing])
+        respx_mock.get("/api/v1/documents/checksum/fake-checksum").mock(
+            return_value=httpx.Response(200)
         )
 
         with pytest.raises(DocumentAlreadyExistsError) as exc_info:
@@ -127,9 +126,9 @@ class TestDocumentServiceViaHttpAdapter:
         """Carrera TOCTOU: pre-check pasa pero create falla por duplicado (409)."""
         _, _, respx_mock = mock_clients
 
-        # Mock: pre-check retorna vacío
-        respx_mock.get("/api/v1/documents").mock(
-            return_value=httpx.Response(200, json=[])
+        # Mock: pre-check retorna vacío (404)
+        respx_mock.get("/api/v1/documents/checksum/fake-checksum").mock(
+            return_value=httpx.Response(404)
         )
         # Mock: create retorna 409 conflict
         respx_mock.post("/api/v1/documents").mock(

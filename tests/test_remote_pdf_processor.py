@@ -52,17 +52,15 @@ class TestRemotePdfProcessorExtractText:
             mock_response = MagicMock()
             mock_response.raise_for_status.return_value = None
             mock_response.json.return_value = {
-                "filename": "document.pdf",
-                "extension": "pdf",
-                "mime_type": "application/pdf",
-                "text": "contenido extraído",
+                "content": "contenido extraído",
+                "page_count": 3,
             }
             mock_client.post.return_value = mock_response
 
             result = await self._processor().extract_text(PDF_BYTES)
 
         mock_client.post.assert_called_once_with(
-            f"{SERVICE_URL}/api/v1/extract", files=UPLOAD_FILES
+            f"{SERVICE_URL}/extract", files=UPLOAD_FILES
         )
         assert result == "contenido extraído"
 
@@ -87,9 +85,9 @@ class TestRemotePdfProcessorExtractText:
             mock_response = MagicMock()
             mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
                 "client error",
-                request=httpx.Request("POST", f"{SERVICE_URL}/api/v1/extract"),
+                request=httpx.Request("POST", f"{SERVICE_URL}/extract"),
                 response=httpx.Response(
-                    status, request=httpx.Request("POST", f"{SERVICE_URL}/api/v1/extract")
+                    status, request=httpx.Request("POST", f"{SERVICE_URL}/extract")
                 ),
             )
             mock_client.post.return_value = mock_response
@@ -106,8 +104,8 @@ class TestRemotePdfProcessorExtractText:
             mock_response = MagicMock()
             mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
                 "server error",
-                request=httpx.Request("POST", f"{SERVICE_URL}/api/v1/extract"),
-                response=httpx.Response(503, request=httpx.Request("POST", f"{SERVICE_URL}/api/v1/extract")),
+                request=httpx.Request("POST", f"{SERVICE_URL}/extract"),
+                response=httpx.Response(503, request=httpx.Request("POST", f"{SERVICE_URL}/extract")),
             )
             mock_client.post.return_value = mock_response
 
