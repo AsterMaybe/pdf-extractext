@@ -10,10 +10,7 @@ import httpx
 from fastapi import Depends, Request
 
 from app.config.config import settings
-from app.infrastructure.remote_pdf_processor import (
-    DocumentGatewayProcessor,
-    RemotePdfProcessor,
-)
+from app.infrastructure.remote_pdf_processor import RemotePdfProcessor
 from app.repositories.http_document_repo import HttpDocumentRepository
 from app.repositories.http_health_repo import HttpHealthRepository
 from app.services.document_service import DocumentService
@@ -38,13 +35,6 @@ def get_document_repo(request: Request) -> IDocumentRepository:
 def get_pdf_processor() -> IPDFProcessor:
     """Instancia ǧnica del adaptador de PDF, expuesto como abstracciǹ (DIP)."""
     return RemotePdfProcessor()
-
-
-def get_document_gateway_processor() -> IPDFProcessor:
-    """Instancia ǧnica del adaptador del Document Gateway Service, expuesto como abstracciǹ (DIP).
-    Se conecta al microservicio-io en el endpoint /api/v1/documents para operaciones de I/O.
-    """
-    return DocumentGatewayProcessor()
 
 
 def get_document_service(
