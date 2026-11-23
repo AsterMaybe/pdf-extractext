@@ -54,11 +54,17 @@ def validate_pdf_format(file_bytes: bytes) -> None:
 class RemotePdfProcessor(IPDFProcessor):
     """Implementa `IPDFProcessor` extrayendo el texto vía el microservicio."""
 
-    def __init__(self, base_url: str | None = None) -> None:
+    def __init__(self, base_url: str | None = None, max_file_size_mb: int | None = None) -> None:
         self._base_url = (base_url or settings.PDF_EXTRACT_SERVICE_URL).rstrip("/")
+        self._max_file_size_bytes = (max_file_size_mb or settings.PDF_MAX_SIZE_MB) * 1024 * 1024
 
     async def validate_format(self, file_bytes: bytes) -> None:
         await asyncio.to_thread(validate_pdf_format, file_bytes)
+        # Validate file size
+        if len(file_bytes) > self._max_file_size_bytes:
+            raise InvalidPDFFormatError(
+                f"El archivo excede el tamaño máximo permitido de {self._max_file_size_bytes // (1024 * 1024)} MB."
+            )
 
     async def compute_checksum(self, file_bytes: bytes) -> str:
         return await asyncio.to_thread(compute_checksum, file_bytes)
@@ -84,6 +90,11 @@ class RemotePdfProcessor(IPDFProcessor):
                 if exc.response.status_code in (400, 422):
                     raise InvalidPDFFormatError(
                         "El documento no es un PDF válido o está corrupto."
+                    ) from exc
+                # 413 (too-large) → archivo muy grande
+                if exc.response.status_code == 413:
+                    raise InvalidPDFFormatError(
+                        "El documento excede el tamaño máximo permitido."
                     ) from exc
                 raise PDFProcessingError(
                     f"El microservicio de extracción falló (HTTP {exc.response.status_code})."
