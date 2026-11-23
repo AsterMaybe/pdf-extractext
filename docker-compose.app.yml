@@ -1,8 +1,9 @@
-# Aplicación FastAPI — conectada al gateway Traefik vía labels.
+# Aplicación FastAPI — conectada al gateway Traefik via Consul Catalog.
 # No publica puertos: todo el tráfico entra por Traefik (expose queda interno).
 # Proyecto aislado: evita que `docker compose up` de esta ficha borre los
 # contenedores de las otras fichas (db/gateway) como "huérfanos".
 # Todas las fichas se conectan por la red externa compartida.
+# Service discovery via Consul Catalog (Phase 6) - no Traefik labels needed.
 name: pdf-extractext-app
 
 services:
@@ -25,37 +26,24 @@ services:
     environment:
       - TZ=${TZ:-UTC}
       - PDF_MAX_SIZE_MB=${PDF_MAX_SIZE_MB:-25}
-      - PDF_EXTRACT_SERVICE_URL=${PDF_EXTRACT_SERVICE_URL:-http://api:8080}
-      - DB_SERVICE_URL=${DB_SERVICE_URL:-http://microservicio-db-go:8080}
+      - PDF_EXTRACT_SERVICE_URL=${PDF_EXTRACT_SERVICE_URL:-http://microservicio-go:8080}
+      - DB_SERVICE_URL=${DB_SERVICE_URL:-http://microservicio-db:8080}
       - DB_SERVICE_TIMEOUT_SECONDS=${DB_SERVICE_TIMEOUT_SECONDS:-10.0}
       # Opcional: el default de la app ya incluye api.localhost.
       # - ALLOWED_HOSTS=["api.localhost","localhost","127.0.0.1"]
-    labels:
-      - "traefik.enable=true"
-      # Red que Traefik debe usar para alcanzar este contenedor (la interpola compose).
-      - "traefik.docker.network=${SHARED_NETWORK_NAME:-test_network}"
-      # Router HTTP
-      - "traefik.http.routers.pdf-app.rule=Host(`${DOMAIN_HOST:-api.localhost}`)"
-      - "traefik.http.routers.pdf-app.entrypoints=web"
-      - "traefik.http.routers.pdf-app.service=pdf-app"
-      # Middlewares encadenados. `traefik-errors` va PRIMERO (outermost) para
-      # poder capturar el 429 del rate-limit y el 503 del circuit-breaker; si
-      # fuera el último, la respuesta de error no pasaría nunca por él.
-      - "traefik.http.routers.pdf-app.middlewares=traefik-errors,ratelimit,cb"
-      # Rate Limit: 100 req/s con burst de 50 (protege la app del abuso)
-      - "traefik.http.middlewares.ratelimit.ratelimit.average=300"
-      - "traefik.http.middlewares.ratelimit.ratelimit.burst=100"
-      # Circuit Breaker: si el ratio de errores de red supera 0.33, abre el circuito
-      - "traefik.http.middlewares.cb.circuitbreaker.expression=NetworkErrorRatio() > 0.33"
-      # Errors (RFC 9457): delega 429/503 a la app para que responda problem+json
-      - "traefik.http.middlewares.traefik-errors.errors.status=429,503"
-      - "traefik.http.middlewares.traefik-errors.errors.query=/traefik/errors/{status}"
-      - "traefik.http.middlewares.traefik-errors.errors.service=pdf-app"
-      # Servicio, puerto interno y estrategia de balanceo
-      - "traefik.http.services.pdf-app.loadbalancer.server.port=8000"
-      # Sin healthcheck activo en Traefik: probea con la IP del contenedor y
-      # TrustedHostMiddleware de la app la rechaza (400). La liveness real la
-      # cubre el healthcheck DOCKER de abajo (127.0.0.1).
+      # Consul registration (via local client agent for Connect sidecar support)
+      - CONSUL_HTTP_ADDR=${CONSUL_HTTP_ADDR:-consul-agent-monolitico:8500}
+      - CONSUL_HTTP_TOKEN=${CONSUL_HTTP_TOKEN:-}
+      # Consul Service Discovery
+      - CONSUL_DNS_PORT=${CONSUL_DNS_PORT:-8600}
+      - CONSUL_DISCOVERY_CACHE_TTL=${CONSUL_DISCOVERY_CACHE_TTL:-30}
+      # Connect sidecar ports for mTLS
+      - CONNECT_SIDECAR_PORT_GO=${CONNECT_SIDECAR_PORT_GO:-8443}
+      - CONNECT_SIDECAR_PORT_DB=${CONNECT_SIDECAR_PORT_DB:-8444}
+      # Traefik routing via Consul tags (Phase 6)
+      - DOMAIN_HOST=${DOMAIN_HOST:-api.localhost}
+    # Healthcheck de Docker: el contenedor se marca unhealthy si el servicio no
+    # responde localmente (independiente del gateway).
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)\""]
       interval: 10s

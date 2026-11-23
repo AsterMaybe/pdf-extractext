@@ -1,7 +1,8 @@
 # Infraestructura: Traefik (API Gateway / reverse proxy).
-# Se conecta a la red compartida externa y descubre los servicios vía labels.
+# Se conecta a la red compartida externa y descubre los servicios vía Consul Catalog.
 # Proyecto aislado: evita que `docker compose up` de otra ficha lo trate como
 # "huérfano" y borre el contenedor (todas las fichas comparten la red externa).
+# Phase 6: Service discovery via Consul Catalog provider (no Docker labels).
 name: pdf-extractext-gateway
 
 services:
@@ -17,6 +18,12 @@ services:
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
     networks:
       - shared-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
 networks:
   shared-network:

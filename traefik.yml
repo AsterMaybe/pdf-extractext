@@ -1,6 +1,7 @@
 # Traefik — Configuración estática (install configuration).
 # Fase actual: HTTP-only (entrypoint `web`). TLS/Let's Encrypt queda documentado
 # como bloque comentado más abajo para el paso a HTTPS.
+# Service discovery via Consul Catalog provider (Phase 6).
 
 api:
   dashboard: true
@@ -13,11 +14,29 @@ entryPoints:
     address: ":80"
 
 providers:
+  # Docker provider: only for Traefik's own management (labels on traefik container)
+  # Service discovery is handled by Consul Catalog provider below
   docker:
     endpoint: "unix:///var/run/docker.sock"
-    # No exponer contenedores por defecto: solo los que tengan labels traefik.
     exposedByDefault: false
     watch: true
+  
+  # Consul Catalog provider: discovers services registered in Consul
+  # Services must be tagged with "traefik.enable=true" in Consul
+  consulCatalog:
+    endpoint:
+      address: "consul:8500"
+      # Token for Consul ACL (optional, for dev mode)
+      token: "dev-bootstrap-token"
+    # prefix: "traefik"  -- removed to test if it filters service discovery
+    # Only register services with this tag
+    requireConsistent: false
+    # Cache catalog to reduce Consul API calls -- DISABLED to test monolitico discovery
+    cache: false
+    # Use stale reads for better performance -- DISABLED to test monolitico discovery
+    stale: false
+    # Create default router for services without explicit traefik tags
+    defaultRule: "Host(`{{ .Name }}.localhost`)"
 
 metrics:
   prometheus:
@@ -26,7 +45,7 @@ metrics:
     addServicesLabels: true
 
 log:
-  level: INFO
+  level: DEBUG
 
 # ── Paso a HTTPS (Let's Encrypt) ─────────────────────────────────────────────
 # 1. Descomentar el bloque certificatesResolvers y agregar entryPoints websecure.
