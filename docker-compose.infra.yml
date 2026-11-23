@@ -1,0 +1,60 @@
+# Infraestructura: Redis (caché de extracciones).
+#
+# Redis es infraestructura compartida, no parte de ningún servicio: vive en su
+# propio proyecto compose (pdf-extractext-infra) dentro de este repo, junto al
+# de Traefik. Así, bajarlo no arrastra a la app ni a los microservicios.
+#
+# Su único consumidor hoy es el microservicio de extracción (microservicio-go),
+# que lo direcciona por URL (REDIS_URL=redis://redis:6379) sobre la red
+# compartida; el microservicio DB no lo usa.
+#
+# Proyecto aislado: evita que `docker compose up` de otra ficha lo trate como
+# "huérfano" y borre el contenedor (todas las fichas comparten la red externa).
+name: pdf-extractext-infra
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # AOF: las entradas de caché sobreviven a un reinicio del contenedor.
+    # maxmemory + allkeys-lru: la memoria tiene techo y, al llenarse, Redis
+    # expulsa la clave menos usada en lugar de crecer hasta OOM. El TTL de 24h
+    # sigue siendo la ventana normal de vida de una entrada; la política LRU es
+    # la red de seguridad, no el mecanismo principal.
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    # Techo duro del contenedor: va por encima de maxmemory (256mb) para dejar
+    # aire al overhead de Redis (buffers, AOF) sin tocar el techo de eviction.
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+    networks:
+      - shared-network
+
+networks:
+  shared-network:
+    name: ${SHARED_NETWORK_NAME:-test_network}
+    external: true
+
+volumes:
+  # Nombre explícito (sin prefijo de proyecto): sobrevive a renombrar el
+  # stack. Gestionado por compose, no external, para que `up` no falle si no
+  # existe. A diferencia de mongo —fuente de verdad— la caché es
+  # reconstruible: perderla solo significa recalentar.
+  redis-data:
+    name: pdf-extractext_redis_data

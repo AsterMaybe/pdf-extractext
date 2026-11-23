@@ -21,7 +21,6 @@ import logging
 
 import httpx
 
-from app.config.config import settings
 from app.domain.exceptions import InvalidPDFFormatError, PDFProcessingError
 from app.services.ports import IPDFProcessor
 
@@ -33,6 +32,7 @@ EXTRACT_PATH = "/extract"
 UPLOAD_FIELD = "file"
 UPLOAD_FILENAME = "document.pdf"
 UPLOAD_MEDIA_TYPE = "application/pdf"
+CONTENT_FIELD = "content"
 
 
 def compute_checksum(file_bytes: bytes) -> str:
@@ -52,7 +52,13 @@ def validate_pdf_format(file_bytes: bytes) -> None:
 
 
 class RemotePdfProcessor(IPDFProcessor):
-    """Implementa `IPDFProcessor` extrayendo el texto vía el microservicio."""
+    """Implementa `IPDFProcessor` extrayendo el texto vía el microservicio.
+
+    La URL base del microservicio se inyecta por constructor (DIP); la
+    composición root (`app/api/dependencies.py`) es quien la proviene de
+    `settings.PDF_EXTRACT_SERVICE_URL`. El límite de tamaño de archivo
+    también se inyecta por constructor para permitir configuración via Consul KV.
+    """
 
     def __init__(self, base_url: str | None = None, max_file_size_mb: int | None = None) -> None:
         self._base_url = (base_url or settings.PDF_EXTRACT_SERVICE_URL).rstrip("/")
@@ -99,4 +105,4 @@ class RemotePdfProcessor(IPDFProcessor):
                 raise PDFProcessingError(
                     f"El microservicio de extracción falló (HTTP {exc.response.status_code})."
                 ) from exc
-        return response.json()["content"]
+        return response.json()[CONTENT_FIELD]
