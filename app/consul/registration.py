@@ -27,6 +27,8 @@ class ConsulConfig:
     consul_token: Optional[str] = None
     tags: List[str] = field(default_factory=list)
     meta: Dict[str, str] = field(default_factory=dict)
+    # Traefik routing host (e.g., "api.localhost")
+    domain_host: str = "api.localhost"
 
     def __post_init__(self):
         # Override from environment if present
@@ -35,6 +37,7 @@ class ConsulConfig:
         self.health_path = os.getenv("CONSUL_HEALTH_PATH", self.health_path)
         self.consul_address = os.getenv("CONSUL_HTTP_ADDR", self.consul_address)
         self.consul_token = os.getenv("CONSUL_HTTP_TOKEN", self.consul_token)
+        self.domain_host = os.getenv("DOMAIN_HOST", self.domain_host)
 
 
 class ConsulRegistrar:
@@ -134,8 +137,9 @@ class ConsulRegistrar:
         tags.extend(self.config.tags)
         # Add explicit Traefik tags with service binding
         # Required when explicit tags are present (Traefik v3 behavior)
+        # Use domain_host from config (set via DOMAIN_HOST env var, default: api.localhost)
         tags.append("traefik.enable=true")
-        tags.append("traefik.http.routers.monolitico.rule=Host(`monolitico.localhost`)")
+        tags.append(f"traefik.http.routers.monolitico.rule=Host(`{self.config.domain_host}`)")
         tags.append("traefik.http.routers.monolitico.entrypoints=web")
         tags.append("traefik.http.routers.monolitico.service=monolitico")
         tags.append("traefik.http.services.monolitico.loadbalancer.server.port=8000")
