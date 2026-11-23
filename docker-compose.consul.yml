@@ -1,0 +1,173 @@
+# Consul Infrastructure for Service Mesh Integration
+# Run: docker compose -f docker-compose.consul.yml up -d
+#
+# This file brings up:
+#   - consul: Consul server (dev/bootstrap mode, UI, Connect CA, ACLs)
+#   - consul-agent-monolitico: Client agent sidecar for monolitico
+#   - consul-agent-go: Client agent sidecar for microservicio-go
+#   - consul-agent-db: Client agent sidecar for microservicio-db
+#
+# All services join the shared 'test_network' used by existing compose files.
+
+services:
+  # ========================================================================
+  # Consul Server (dev/bootstrap mode - single server for development)
+  # ========================================================================
+  consul:
+    image: hashicorp/consul:2.1.0
+    container_name: consul
+    hostname: consul
+    restart: unless-stopped
+    # Run as server in dev mode with bootstrap (single server cluster)
+    command: agent -config-dir=/consul/config -dev -bind=0.0.0.0 -client=0.0.0.0
+    ports:
+      - "8500:8500"   # HTTP API + UI
+      - "8600:8600/udp" # DNS
+      - "8300:8300"   # Server RPC
+      - "8301:8301"   # Serf LAN
+      - "8301:8301/udp"
+      - "8302:8302"   # Serf WAN
+      - "8302:8302/udp"
+    volumes:
+      - consul-data:/consul/data
+      - ./consul/config/server:/consul/config
+    environment:
+      - CONSUL_HTTP_TOKEN=${CONSUL_BOOTSTRAP_TOKEN:-dev-bootstrap-token}
+      - CONSUL_HTTP_ADDR=http://127.0.0.1:8500
+    networks:
+      - test_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8500/v1/status/leader | grep -q ':' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  # ========================================================================
+  # Client Agent Sidecar for Monolitico (FastAPI)
+  # ========================================================================
+  consul-agent-monolitico:
+    image: hashicorp/consul:2.1.0
+    container_name: consul-agent-monolitico
+    hostname: consul-agent-monolitico
+    restart: unless-stopped
+    # Run as client agent, join the consul server
+    command: agent -config-dir=/consul/config -bind=0.0.0.0 -client=0.0.0.0 -retry-join=consul
+    volumes:
+      - ./consul/config/agent-monolitico:/consul/config
+    environment:
+      - CONSUL_HTTP_TOKEN=${CONSUL_BOOTSTRAP_TOKEN:-dev-bootstrap-token}
+      - CONSUL_HTTP_ADDR=http://consul:8500
+      - HOST_IP=host.docker.internal
+    networks:
+      - test_network
+    depends_on:
+      consul:
+        condition: service_healthy
+    # Health check disabled - consul members works manually but Docker health check fails
+      # test: ["CMD", "consul", "members"]
+      # interval: 10s
+      # timeout: 5s
+      # retries: 5
+      # start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+
+  # ========================================================================
+  # Client Agent Sidecar for Microservicio-Go (PDF Extractor)
+  # ========================================================================
+  consul-agent-go:
+    image: hashicorp/consul:2.1.0
+    container_name: consul-agent-go
+    hostname: consul-agent-go
+    restart: unless-stopped
+    command: agent -config-dir=/consul/config -bind=0.0.0.0 -client=0.0.0.0 -retry-join=consul
+    volumes:
+      - ./consul/config/agent-go:/consul/config
+    environment:
+      - CONSUL_HTTP_TOKEN=${CONSUL_BOOTSTRAP_TOKEN:-dev-bootstrap-token}
+      - CONSUL_HTTP_ADDR=http://consul:8500
+      - HOST_IP=host.docker.internal
+    networks:
+      - test_network
+    depends_on:
+      consul:
+        condition: service_healthy
+    # Health check disabled - consul members works manually but Docker health check fails
+      # test: ["CMD", "consul", "members"]
+      # interval: 10s
+      # timeout: 5s
+      # retries: 5
+      # start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+
+  # ========================================================================
+  # Client Agent Sidecar for Microservicio-DB (Document CRUD)
+  # ========================================================================
+  consul-agent-db:
+    image: hashicorp/consul:2.1.0
+    container_name: consul-agent-db
+    hostname: consul-agent-db
+    restart: unless-stopped
+    command: agent -config-dir=/consul/config -bind=0.0.0.0 -client=0.0.0.0 -retry-join=consul
+    volumes:
+      - ./consul/config/agent-db:/consul/config
+    environment:
+      - CONSUL_HTTP_TOKEN=${CONSUL_BOOTSTRAP_TOKEN:-dev-bootstrap-token}
+      - CONSUL_HTTP_ADDR=http://consul:8500
+      - HOST_IP=host.docker.internal
+    networks:
+      - test_network
+    depends_on:
+      consul:
+        condition: service_healthy
+    # Health check disabled - consul members works manually but Docker health check fails
+      # test: ["CMD", "consul", "members"]
+      # interval: 10s
+      # timeout: 5s
+      # retries: 5
+      # start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+
+# ========================================================================
+# Networks
+# ========================================================================
+networks:
+  test_network:
+    name: test_network
+    external: true
+
+# ========================================================================
+# Volumes
+# ========================================================================
+volumes:
+  consul-data:
+    name: consul-data

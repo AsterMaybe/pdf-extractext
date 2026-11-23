@@ -1,0 +1,15 @@
+# Local development override: publishes port 8000 for direct Postman testing
+# Usage: docker compose -f docker-compose.app.yml -f docker-compose.local.yml up
+# This bypasses the Traefik/Consul Catalog routing issue for monolitico
+
+services:
+  myapp:
+    ports:
+      - "8000:8000"  # Direct access for Postman testing (workaround)
+    # Disable read-only for local debugging if needed
+    # read_only: false
+    # tmpfs: null
+
+  # Envoy sidecar not needed for local testing
+  envoy-sidecar-app:
+    profiles: ["connect"]
