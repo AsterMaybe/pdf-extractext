@@ -48,6 +48,12 @@ call :CREATE_INTENTION "monolitico" "microservicio-go" "allow"
 REM monolitico -> microservicio-db (for document persistence)
 call :CREATE_INTENTION "monolitico" "microservicio-db" "allow"
 
+REM monolitico -> microservicio-resume (for summary generation)
+call :CREATE_INTENTION "monolitico" "microservicio-resume" "allow"
+
+REM microservicio-resume -> microservicio-db (for summary persistence)
+call :CREATE_INTENTION "microservicio-resume" "microservicio-db" "allow"
+
 REM microservicio-go -> redis (for cache) - if redis has sidecar
 REM call :CREATE_INTENTION "microservicio-go" "redis" "allow"
 
@@ -58,6 +64,7 @@ REM Sidecar-to-sidecar intentions (internal, for Connect proxy authorization)
 REM These are automatically created when sidecars are registered with intentions above
 REM call :CREATE_INTENTION "monolitico-sidecar" "microservicio-go-sidecar" "allow"
 REM call :CREATE_INTENTION "monolitico-sidecar" "microservicio-db-sidecar" "allow"
+REM call :CREATE_INTENTION "monolitico-sidecar" "microservicio-resume-sidecar" "allow"
 
 echo.
 echo Listing all intentions:

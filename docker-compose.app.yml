@@ -29,6 +29,7 @@ services:
       - PDF_EXTRACT_SERVICE_URL=${PDF_EXTRACT_SERVICE_URL:-http://microservicio-go:8080}
       - DB_SERVICE_URL=${DB_SERVICE_URL:-http://microservicio-db:8080}
       - DB_SERVICE_TIMEOUT_SECONDS=${DB_SERVICE_TIMEOUT_SECONDS:-10.0}
+      - RESUME_SERVICE_URL=${RESUME_SERVICE_URL:-http://microservicio-resume:8080}
       # Opcional: el default de la app ya incluye api.localhost.
       # - ALLOWED_HOSTS=["api.localhost","localhost","127.0.0.1"]
       # Consul registration (via local client agent for Connect sidecar support)

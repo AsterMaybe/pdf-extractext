@@ -66,6 +66,7 @@ SHARED_NETWORK_NAME=test_network
 # URLs de los microservicios Go
 PDF_EXTRACT_SERVICE_URL=http://api:8080
 DB_SERVICE_URL=http://microservicio-db-go:8080
+RESUME_SERVICE_URL=http://microservicio-resume:8080
 ```
 
 ## Cómo Ejecutar la Aplicación
@@ -217,12 +218,13 @@ pdf-extractext/
 │     ├── controllers/       # Recibe las peticiones del usuario (rutas web) y devuelve la respuesta. No lleva lógica.
 │     ├── domain/            # Modelos y errores de dominio (RFC 9457: code + detail), sin dependencias de frameworks.
 │     ├── infrastructure/    # Adaptador HTTP hacia el microservicio de extracción (remote_pdf_processor).
-│     ├── repositories/      # Clientes HTTP hacia los microservicios Go (documentos y health).
+│     ├── repositories/      # Clientes HTTP hacia los microservicios Go (documentos, health y resumen).
 │     └── services/          # Orquesta la lógica de negocio sobre puertos (Protocols); nunca toca infraestructura.
 ├── tests/                   # Tests unitarios e integración (pytest)
 ├── docker-compose.traefik.yml  # Orquestación de Traefik (API gateway / reverse proxy)
 ├── docker-compose.app.yml      # Orquestación de la aplicación FastAPI
 ├── docker-compose.infra.yml    # Orquestación de Redis (caché compartida de extracciones)
+├── docker-compose.consul.yml   # Orquestación de Consul (service discovery)
 ├── traefik.yml                 # Configuración estática de Traefik
 ├── pyproject.toml          # Configuración del proyecto y dependencias
 ├── .env                    # Variables de entorno locales (NO subir a Git)
@@ -230,6 +232,11 @@ pdf-extractext/
 └── .gitignore              # Archivos y carpetas ignorados por Git
 
 ```
+
+**Microservicios Go (en la raíz del repositorio):**
+- `microservicio-db-go/` — Persistencia de documentos (MongoDB + Redis)
+- `microservicio-extract-go/` — Extracción de texto de PDFs
+- `microservicio-resume/` — Generación de resúmenes con IA (Kafka consumer)
 
 ## Recursos Útiles
 

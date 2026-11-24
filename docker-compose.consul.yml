@@ -6,6 +6,7 @@
 #   - consul-agent-monolitico: Client agent sidecar for monolitico
 #   - consul-agent-go: Client agent sidecar for microservicio-go
 #   - consul-agent-db: Client agent sidecar for microservicio-db
+#   - consul-agent-resume: Client agent sidecar for microservicio-resume
 #
 # All services join the shared 'test_network' used by existing compose files.
 
@@ -133,6 +134,41 @@ services:
     command: agent -config-dir=/consul/config -bind=0.0.0.0 -client=0.0.0.0 -retry-join=consul
     volumes:
       - ./consul/config/agent-db:/consul/config
+    environment:
+      - CONSUL_HTTP_TOKEN=${CONSUL_BOOTSTRAP_TOKEN:-dev-bootstrap-token}
+      - CONSUL_HTTP_ADDR=http://consul:8500
+      - HOST_IP=host.docker.internal
+    networks:
+      - test_network
+    depends_on:
+      consul:
+        condition: service_healthy
+    # Health check disabled - consul members works manually but Docker health check fails
+      # test: ["CMD", "consul", "members"]
+      # interval: 10s
+      # timeout: 5s
+      # retries: 5
+      # start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+
+  # ========================================================================
+  # Client Agent Sidecar for Microservicio-Resume (Summary Generator)
+  # ========================================================================
+  consul-agent-resume:
+    image: hashicorp/consul:2.1.0
+    container_name: consul-agent-resume
+    hostname: consul-agent-resume
+    restart: unless-stopped
+    command: agent -config-dir=/consul/config -bind=0.0.0.0 -client=0.0.0.0 -retry-join=consul
+    volumes:
+      - ./consul/config/agent-resume:/consul/config
     environment:
       - CONSUL_HTTP_TOKEN=${CONSUL_BOOTSTRAP_TOKEN:-dev-bootstrap-token}
       - CONSUL_HTTP_ADDR=http://consul:8500

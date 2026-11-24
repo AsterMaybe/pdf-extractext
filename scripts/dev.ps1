@@ -1,12 +1,12 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Orquesta los cuatro stacks Docker Compose del proyecto con un solo comando.
+  Orquesta los cinco stacks Docker Compose del proyecto con un solo comando.
 
 .DESCRIPTION
   Levanta / apaga / inspecciona los stacks en el orden correcto:
 
-      consul -> microservicio-db -> microservicio-go -> traefik -> monolitico (app)
+      consul -> microservicio-db -> microservicio-go -> microservicio-resume -> traefik -> pdf-extractext (app)
 
   Crea de forma idempotente la red compartida y el volumen externo de Mongo.
   Espera a que cada stack reporte "healthy" antes de continuar.
@@ -17,7 +17,7 @@
   rebuild  Igual que up pero reconstruye im�genes (--build).
   down     Baja todo en orden inverso.
   restart  down + up.
-  logs     Sigue (tail -f) los logs de los cuatro stacks en paralelo.
+  logs     Sigue (tail -f) los logs de los cinco stacks en paralelo.
   ps       Muestra el estado de cada stack.
 
 .PARAMETER Timeout
@@ -29,6 +29,9 @@
 .PARAMETER GoPath
   Ruta opcional a microservicio-go (default: auto-detect ../microservicio-go desde project root).
 
+.PARAMETER ResumePath
+  Ruta opcional a microservicio-resume (default: auto-detect ../microservicio-resume desde project root).
+
 .EXAMPLE
   .\dev.ps1 up
   .\dev.ps1 rebuild
@@ -36,6 +39,7 @@
   .\dev.ps1 logs
   .\dev.ps1 down
   .\dev.ps1 up -DbPath "C:\ruta\personalizada\microservicio-db"
+  .\dev.ps1 up -ResumePath "C:\ruta\personalizada\microservicio-resume"
 #>
 [CmdletBinding()]
 param(
@@ -45,57 +49,67 @@ param(
     [int]$Timeout = 180,
 
     [string]$DbPath = '',
-    [string]$GoPath = ''
+    [string]$GoPath = '',
+    [string]$ResumePath = ''
 )
 
 $ErrorActionPreference = 'Stop'
 
 # -- Descubrir rutas del proyecto din�micamente ----------------------------------
-# Script est� en: monolitico/scripts/
-# Monolitico dir: monolitico/
-# Project root:   monolitico/..
+# Script est� en: pdf-extractext/scripts/
+# Monolitico dir: pdf-extractext/
+# Project root:   pdf-extractext/..
 $ScriptDir     = $PSScriptRoot
 $MonoliticoDir = Split-Path -Parent $ScriptDir
 $ProjectRoot   = Split-Path -Parent $MonoliticoDir
 
 # Auto-detectar microservicios (permitir override por par�metro)
-$DbDir = if ($DbPath) { $DbPath } else { Join-Path $ProjectRoot 'microservicio-db' }
-$GoDir = if ($GoPath) { $GoPath } else { Join-Path $ProjectRoot 'microservicio-go' }
+$DbDir = if ($DbPath) { $DbPath } else { Join-Path $ProjectRoot 'microservicio-db-go' }
+$GoDir = if ($GoPath) { $GoPath } else { Join-Path $ProjectRoot 'microservicio-extract-go' }
+$ResumeDir = if ($ResumePath) { $ResumePath } else { Join-Path $ProjectRoot 'microservicio-resume' }
 
 # Validar que existen
 if (-not (Test-Path -LiteralPath $DbDir)) {
-    throw "No se encuentra microservicio-db en: $DbDir`nUsa -DbPath para especificar ruta personalizada."
+    throw "No se encuentra microservicio-db-go en: $DbDir`nUsa -DbPath para especificar ruta personalizada."
 }
 if (-not (Test-Path -LiteralPath $GoDir)) {
-    throw "No se encuentra microservicio-go en: $GoDir`nUsa -GoPath para especificar ruta personalizada."
+    throw "No se encuentra microservicio-extract-go en: $GoDir`nUsa -GoPath para especificar ruta personalizada."
+}
+if (-not (Test-Path -LiteralPath $ResumeDir)) {
+    throw "No se encuentra microservicio-resume en: $ResumeDir`nUsa -ResumePath para especificar ruta personalizada."
 }
 
 Write-Host "Proyecto: $ProjectRoot" -ForegroundColor DarkGray
 Write-Host "Monolitico: $MonoliticoDir" -ForegroundColor DarkGray
 Write-Host "DB: $DbDir" -ForegroundColor DarkGray
 Write-Host "Go: $GoDir" -ForegroundColor DarkGray
+Write-Host "Resume: $ResumeDir" -ForegroundColor DarkGray
 
 # -- Infraestructura compartida (se crea si no existe) -------------------------
 $NetworkName = 'test_network'
 $VolumeName  = 'pdf-extractext_mongo_data'
 
 # -- Stacks en orden de arranque -----------------------------------------------
-# Dir es relativo a $ProjectRoot, excepto consul y monolitico que usan rutas especiales
+# Dir es relativo a $ProjectRoot. pdf-extractext es la carpeta del monolito (antes llamada monolitico)
+$MonoliticoFolderName = Split-Path -Leaf $MonoliticoDir
 $Stacks = @(
-    # Consul: compose est� en monolitico/ (mismo nivel que microservicios desde project root)
-    [pscustomobject]@{ Name = 'consul';  Dir = 'monolitico';                 Compose = 'docker-compose.consul.yml';  Env = '.env'; Build = $false; Wait = @('consul') }
+    # Consul: compose est� en pdf-extractext/ (mismo nivel que microservicios desde project root)
+    [pscustomobject]@{ Name = 'consul';  Dir = $MonoliticoFolderName;                 Compose = 'docker-compose.consul.yml';  Env = '.env'; Build = $false; Wait = @('consul') }
 
     # microservicio-db: est� en project root
-    [pscustomobject]@{ Name = 'db';      Dir = 'microservicio-db';           Compose = 'docker-compose.yml';         Env = '.env'; Build = $true;  Wait = @('mongo', 'redis', 'microservicio-db-go') }
+    [pscustomobject]@{ Name = 'db';      Dir = 'microservicio-db-go';        Compose = 'docker-compose.yml';         Env = '.env'; Build = $true;  Wait = @('mongo', 'redis', 'microservicio-db-go') }
 
     # microservicio-go: est� en project root
-    [pscustomobject]@{ Name = 'go';      Dir = 'microservicio-go';           Compose = 'docker-compose.yml';         Env = '.env'; Build = $true;  Wait = @('api') }
+    [pscustomobject]@{ Name = 'go';      Dir = 'microservicio-extract-go';   Compose = 'docker-compose.yml';         Env = '.env'; Build = $true;  Wait = @('api') }
 
-    # Traefik: compose est� en monolitico/
-    [pscustomobject]@{ Name = 'traefik'; Dir = 'monolitico';                 Compose = 'docker-compose.traefik.yml'; Env = '.env'; Build = $false; Wait = @('traefik') }
+    # microservicio-resume: est� en project root
+    [pscustomobject]@{ Name = 'resume';  Dir = 'microservicio-resume';       Compose = 'docker-compose.yml';         Env = '.env'; Build = $true;  Wait = @('resume') }
 
-    # App: compose est� en monolitico/
-    [pscustomobject]@{ Name = 'app';     Dir = 'monolitico';                 Compose = 'docker-compose.app.yml';     Env = '.env'; Build = $true;  Wait = @('myapp') }
+    # Traefik: compose est� en pdf-extractext/
+    [pscustomobject]@{ Name = 'traefik'; Dir = $MonoliticoFolderName;                 Compose = 'docker-compose.traefik.yml'; Env = '.env'; Build = $false; Wait = @('traefik') }
+
+    # App: compose est� en pdf-extractext/
+    [pscustomobject]@{ Name = 'app';     Dir = $MonoliticoFolderName;                 Compose = 'docker-compose.app.yml';     Env = '.env'; Build = $true;  Wait = @('myapp') }
 )
 
 # -- Helpers -------------------------------------------------------------------
@@ -225,6 +239,7 @@ function Show-Banner {
     Write-Host "    Consul UI     http://localhost:8500"
     Write-Host "    Monolito      http://api.localhost/docs"
     Write-Host "    Extractor     http://extract.localhost/api/v1/health"
+    Write-Host "    Resumen       http://resume.localhost/health"
     Write-Host "    Traefik       http://localhost:8080/dashboard/"
     Write-Host ""
 }

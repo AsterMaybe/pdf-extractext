@@ -42,6 +42,12 @@ create_intention "monolitico" "microservicio-go" "allow"
 # monolitico -> microservicio-db (for document persistence)
 create_intention "monolitico" "microservicio-db" "allow"
 
+# monolitico -> microservicio-resume (for summary generation)
+create_intention "monolitico" "microservicio-resume" "allow"
+
+# microservicio-resume -> microservicio-db (for summary persistence)
+create_intention "microservicio-resume" "microservicio-db" "allow"
+
 # microservicio-go -> redis (for cache) - if redis has sidecar
 # create_intention "microservicio-go" "redis" "allow"
 
@@ -53,6 +59,7 @@ create_intention "monolitico" "microservicio-db" "allow"
 # But we can also explicitly create them for clarity:
 # create_intention "monolitico-sidecar" "microservicio-go-sidecar" "allow"
 # create_intention "monolitico-sidecar" "microservicio-db-sidecar" "allow"
+# create_intention "monolitico-sidecar" "microservicio-resume-sidecar" "allow"
 
 echo ""
 echo "Listing all intentions:"
