@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     # Timeout en segundos para requests al microservicio DB Go.
     DB_SERVICE_TIMEOUT_SECONDS: float = 10.0
 
+    # --- Kafka (eventos asíncronos) ---
+    KAFKA_BOOTSTRAP_SERVERS: str = "kafka:9092"
+    KAFKA_TOPIC_PDF_VALIDATED: str = "pdf.validated"
+    KAFKA_TOPIC_COMPLETED: str = "summary.completed"     # NUEVO: eventos de resumen completado
+    KAFKA_TOPIC_DLQ: str = "summary.dlq"               # NUEVO: eventos de resumen DLQ
+    KAFKA_CLIENT_ID: str = "pdf-extractext-monolitico"
+
     # Configuración para Pydantic
     model_config = SettingsConfigDict(
         env_file=".env",
